@@ -16,9 +16,11 @@ export default function HomePage() {
   const debugVideo = typeof process !== "undefined" && (process.env.NEXT_PUBLIC_DEBUG_VIDEO === "1" || process.env.NEXT_PUBLIC_DEBUG_VIDEO === "true")
 
   const [isMuted, setIsMuted] = React.useState(true)
-  const [isPlaying, setIsPlaying] = React.useState(true)
+  const [isPlaying, setIsPlaying] = React.useState(false)
   const [heroVideoUrl, setHeroVideoUrl] = React.useState<string>(INTRO_VIDEO_FALLBACK_URL)
-  const playerApiRef = React.useRef<{ togglePlay: () => void; setMuted: (muted: boolean) => void } | null>(null)
+  const playerApiRef = React.useRef<{ togglePlay: () => Promise<boolean>; setMuted: (muted: boolean) => void } | null>(null)
+  const toggleLockRef = React.useRef(false)
+  const lastToggleTsRef = React.useRef(0)
 
   React.useEffect(() => {
     let active = true
@@ -38,8 +40,20 @@ export default function HomePage() {
     }
   }, [])
 
-  const toggleHeroPlay = () => {
-    playerApiRef.current?.togglePlay()
+  const toggleHeroPlay = async () => {
+    if (toggleLockRef.current) return
+    toggleLockRef.current = true
+    lastToggleTsRef.current = Date.now()
+    try {
+      const api = playerApiRef.current
+      if (!api) return
+      const nextPlaying = await api.togglePlay()
+      setIsPlaying(nextPlaying)
+    } finally {
+      window.setTimeout(() => {
+        toggleLockRef.current = false
+      }, 250)
+    }
   }
 
   const toggleHeroMute = () => {
@@ -52,7 +66,7 @@ export default function HomePage() {
         <VideoPlayer
           src={heroVideoUrl}
           className="h-full w-full object-cover"
-          autoplay
+          autoplay={false}
           poster=""
           showOptions={false}
           startFullscreen={false}
@@ -60,12 +74,23 @@ export default function HomePage() {
           hideControls={!debugVideo}
           isMuted={isMuted}
           setIsMuted={setIsMuted}
-          onPlaybackChange={setIsPlaying}
+          onPlaybackChange={(playing) => {
+            const sinceClick = Date.now() - lastToggleTsRef.current
+            // Always accept play transitions immediately so the label updates
+            if (playing) {
+              setIsPlaying(true)
+              return
+            }
+            // Debounce only pause transitions triggered right after our click
+            if (sinceClick < 150) return
+            setIsPlaying(false)
+          }}
           registerApi={(api) => {
             playerApiRef.current = {
               togglePlay: api.togglePlay,
               setMuted: api.setMuted,
             }
+            setIsPlaying(!api.element?.paused)
           }}
         />
         <div className="pointer-events-none absolute inset-0 h-full w-full bg-black/60" />
@@ -76,7 +101,9 @@ export default function HomePage() {
           size="sm"
           variant="outline"
           className="rounded-full border-white bg-white/10 px-5 text-white shadow hover:bg-white/20"
-          onClick={toggleHeroPlay}
+          onClick={() => {
+            void toggleHeroPlay()
+          }}
         >
           {isPlaying ? "Pause" : "Play"}
         </Button>

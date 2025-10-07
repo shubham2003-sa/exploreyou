@@ -15,7 +15,7 @@ import {
 } from "@/lib/video-progress"
 
 const SUBJECT_TITLES: Record<string, string> = {
-  science: "Science",
+  science: "Consulting",
   commerce: "Commerce",
   math: "Math",
   arts: "Arts",

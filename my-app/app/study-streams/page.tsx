@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import type { LucideIcon } from "lucide-react"
-import { Atom, Calculator, Palette, TrendingUp } from "lucide-react"
+import { Atom, Calculator, Palette, TrendingUp, Briefcase } from "lucide-react"
 
 import Header from "@/components/header"
 import VideoPlayer from "@/components/video-player"
@@ -32,11 +32,11 @@ type FullscreenCapableElement = HTMLDivElement & {
 const STREAMS: Stream[] = [
   {
     id: "science",
-    title: "Science",
-    icon: Atom,
-    bgColor: "bg-teal-100",
-    iconColor: "text-teal-600",
-    description: "Explore physics, chemistry, and biology concepts",
+    title: "Consulting",
+    icon: Briefcase,
+    bgColor: "bg-blue-100",
+    iconColor: "text-blue-600",
+    description: "Practice case interviews, problem structuring, and stakeholder communication",
   },
   {
     id: "commerce",
@@ -89,10 +89,13 @@ export default function StudyStreamsPage() {
   const [overlayContainer, setOverlayContainer] = useState<HTMLDivElement | null>(null)
   const [overlayStream, setOverlayStream] = useState<string | null>(null)
   const [overlayVideoUrl, setOverlayVideoUrl] = useState<string>(STUDY_STREAMS_VIDEO_FALLBACK_URL)
+  const [overlayIntroUrl, setOverlayIntroUrl] = useState<string | null>(null)
+  const [overlayIntroPlaying, setOverlayIntroPlaying] = useState(false)
   const [selectionMap, setSelectionMap] = useState<Record<string, string>>({})
   const [overlayInitialPosition, setOverlayInitialPosition] = useState<number | null>(null)
   const overlayLastRecordRef = useRef<VideoProgressRecord | null>(null)
   const autoResumeRef = useRef(false)
+  const navigatingRef = useRef(false)
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'production') {
@@ -283,6 +286,7 @@ const closeOverlay = useCallback(() => {
       setTimerVisible(true)
       const startedAt = Date.now()
       timerRef.current = setInterval(() => {
+        if (navigatingRef.current) return
         const elapsed = Date.now() - startedAt
         const progress = Math.max(0, 1 - elapsed / 10000)
         setTimerProgress(progress)
@@ -293,7 +297,9 @@ const closeOverlay = useCallback(() => {
           }
           setTimerVisible(false)
           closeOverlay()
-          router.push("/study-streams")
+          if (!navigatingRef.current) {
+            router.push("/study-streams")
+          }
         }
       }, 50)
     }, 5000)
@@ -341,6 +347,16 @@ const closeOverlay = useCallback(() => {
           .finally(() => {
             setOverlayContainer(div)
             setOverlayStream(streamId)
+            // Consulting: play an extra intro video first, then fall back to the resolved stream video
+            if (streamId === 'science') {
+              setOverlayIntroUrl('https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/in%20flight%20option%20for%20excited.mp4')
+              setOverlayIntroPlaying(true)
+              // After intro, play this specific Airplane Video instead of the default generated clip
+              setOverlayVideoUrl('https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/Airplane%20Video.mp4')
+            } else {
+              setOverlayIntroUrl(null)
+              setOverlayIntroPlaying(false)
+            }
             setIsLoading(false)
             setPendingStream(null)
           })
@@ -493,24 +509,28 @@ const closeOverlay = useCallback(() => {
             <div className="absolute right-4 top-4 z-[1000000]">
               <Button onClick={closeOverlay}>Close</Button>
             </div>
-          <div className="relative flex h-full w-full items-center justify-center z-[1000001]">
+            <div className="relative flex h-full w-full items-center justify-center z-[1000001]">
               <VideoPlayer
-                src={overlayVideoUrl}
+                src={overlayIntroPlaying && overlayIntroUrl ? overlayIntroUrl : overlayVideoUrl}
                 className="h-full w-full object-cover"
                 showOptions={false}
                 hideControls={false}
                 autoplay
                 startFullscreen={false}
+                forceMuted={overlayIntroPlaying}
                 trackingConfig={{
-                  videoId: overlayStream,
-                  videoUrl: overlayVideoUrl,
+                  videoId: overlayIntroPlaying ? `${overlayStream}-intro` : overlayStream,
+                  videoUrl: overlayIntroPlaying && overlayIntroUrl ? overlayIntroUrl : overlayVideoUrl,
                   streamSelected: overlayStream ?? undefined,
                 }}
                 initialPositionSeconds={overlayInitialPosition}
-                onTrackedEvent={(record, _event) => {
-                  void _event
+                onTrackedEvent={(record, eventName) => {
                   if (record) {
                     overlayLastRecordRef.current = record
+                  }
+                  if (overlayIntroPlaying && eventName === 'video_completed') {
+                    // switch to main overlay video when intro finishes
+                    setOverlayIntroPlaying(false)
                   }
                 }}
               />
@@ -530,6 +550,7 @@ const closeOverlay = useCallback(() => {
               </div>
             )}
 
+            {!overlayIntroPlaying && (
             <div className="pointer-events-auto fixed left-0 right-0 bottom-0 z-[1000003]" style={{ height: "9.5rem" }}>
               <div className="flex h-full w-full items-start bg-black/95">
                 <button
@@ -551,8 +572,15 @@ const closeOverlay = useCallback(() => {
                       taskStatus: 'in_progress',
                       eventName: `task_option_selected:Option${option}`,
                     })
+                    navigatingRef.current = true
                     closeOverlay()
-                    router.push(`/task-simulation/${overlayStream}?option=${option}`)
+                    if (document.fullscreenElement && document.exitFullscreen) {
+                      document.exitFullscreen().catch(() => undefined).finally(() => {
+                        router.push(`/task-simulation/${overlayStream}?option=${option}`)
+                      })
+                    } else {
+                      router.push(`/task-simulation/${overlayStream}?option=${option}`)
+                    }
                   }}
                 >
                   <span className="mt-0">How to Play</span>
@@ -577,14 +605,22 @@ const closeOverlay = useCallback(() => {
                       taskStatus: 'in_progress',
                       eventName: `task_option_selected:Option${option}`,
                     })
+                    navigatingRef.current = true
                     closeOverlay()
-                    router.push(`/task-simulation/${overlayStream}?option=${option}`)
+                    if (document.fullscreenElement && document.exitFullscreen) {
+                      document.exitFullscreen().catch(() => undefined).finally(() => {
+                        router.push(`/task-simulation/${overlayStream}?option=${option}`)
+                      })
+                    } else {
+                      router.push(`/task-simulation/${overlayStream}?option=${option}`)
+                    }
                   }}
                 >
                   <span className="mt-0">Start Simulation</span>
                 </button>
               </div>
             </div>
+            )}
           </div>,
           overlayContainer
         )}

@@ -1,4 +1,4 @@
-﻿"use client"
+﻿  "use client"
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react"
 
@@ -11,9 +11,9 @@ import {
 } from "@/lib/video-progress"
 
 interface PlayerApi {
-  play: () => void
+  play: () => Promise<boolean>
   pause: () => void
-  togglePlay: () => void
+  togglePlay: () => Promise<boolean>
   setMuted: (muted: boolean) => void
   element: HTMLVideoElement | null
 }
@@ -108,6 +108,9 @@ export default function VideoPlayer({
     },
     [onMuteChange, setIsMuted],
   )
+
+  const lastPlayEmitRef = useRef(0)
+  const lastPauseEmitRef = useRef(0)
 
   useEffect(() => {
     trackingRef.current = trackingConfig
@@ -223,7 +226,11 @@ export default function VideoPlayer({
       emitPlayback(true)
       const eventName: VideoProgressEventName = hasStartedRef.current ? "resume_playback" : "video_started"
       hasStartedRef.current = true
-      void sendProgressEvent(eventName, { status: "in_progress" })
+      const now = Date.now()
+      if (now - (lastPlayEmitRef.current || 0) > 5000) {
+        lastPlayEmitRef.current = now
+        void sendProgressEvent(eventName, { status: "in_progress" })
+      }
     }
 
     const handlePause = () => {
@@ -231,7 +238,15 @@ export default function VideoPlayer({
       if (video.ended) {
         return
       }
-      void sendProgressEvent("video_paused", { status: "paused" })
+      const sincePlay = Date.now() - (lastUserPlayTsRef.current || 0)
+      if (sincePlay < 800) {
+        return
+      }
+      const now = Date.now()
+      if (now - (lastPauseEmitRef.current || 0) > 1000) {
+        lastPauseEmitRef.current = now
+        void sendProgressEvent("video_paused", { status: "paused" })
+      }
     }
 
     const handleTime = () => {
@@ -271,7 +286,8 @@ export default function VideoPlayer({
 
     video.muted = effectiveMuted
     if (autoplay) {
-      video.play().then(() => emitPlayback(true)).catch(() => emitPlayback(false))
+      // Rely on native 'play'/'pause' events to update state; avoid double state flips
+      video.play().catch(() => undefined)
     }
 
     if (startFullscreen) {
@@ -291,22 +307,88 @@ export default function VideoPlayer({
       video.removeEventListener("error", handleError)
       video.removeEventListener("ended", handleEnded)
     }
-  }, [applyInitialSeek, autoplay, effectiveMuted, emitPlayback, duration, currentTime, sendProgressEvent, startFullscreen])
+  }, [applyInitialSeek, autoplay, effectiveMuted, emitPlayback, sendProgressEvent, startFullscreen])
+
+  const togglingRef = useRef(false)
+  const lastUserPlayTsRef = useRef(0)
+
+  const attemptPlay = useCallback(async () => {
+    const video = videoRef.current
+    if (!video) return false
+    try {
+      const playResult = video.play()
+      if (playResult && typeof playResult.then === "function") {
+        await playResult
+      }
+      return !video.paused
+    } catch (error) {
+      console.warn("Video playback failed", error)
+      return false
+    }
+  }, [])
+
+  const ensurePlayback = useCallback(async () => {
+    let attempts = 0
+    const maxAttempts = 6
+    while (attempts < maxAttempts) {
+      const playing = await attemptPlay()
+      if (playing) {
+        return true
+      }
+      attempts += 1
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 150)
+      })
+    }
+    return false
+  }, [attemptPlay])
+
+  const togglePlay = useCallback(async () => {
+    if (togglingRef.current) {
+      return !(videoRef.current?.paused ?? true)
+    }
+    togglingRef.current = true
+    const video = videoRef.current
+    if (!video) {
+      togglingRef.current = false
+      return false
+    }
+
+    try {
+      if (video.paused || video.ended) {
+        lastUserPlayTsRef.current = Date.now()
+        const success = await ensurePlayback()
+        if (!success) {
+          emitPlayback(false)
+        }
+        return success
+      }
+      video.pause()
+      return false
+    } finally {
+      window.setTimeout(() => {
+        togglingRef.current = false
+      }, 150)
+    }
+  }, [emitPlayback, ensurePlayback])
 
   useEffect(() => {
     const video = videoRef.current
     if (!video || !registerApi) return
 
     const api: PlayerApi = {
-      play: () => video.play().catch(() => undefined),
-      pause: () => video.pause(),
-      togglePlay: () => {
-        if (video.paused) {
-          void video.play().catch(() => undefined)
-        } else {
-          video.pause()
+      play: async () => {
+        lastUserPlayTsRef.current = Date.now()
+        const success = await ensurePlayback()
+        if (!success) {
+          emitPlayback(false)
         }
+        return success
       },
+      pause: () => {
+        video.pause()
+      },
+      togglePlay: () => togglePlay(),
       setMuted: (muted: boolean) => {
         video.muted = muted
         emitMute(muted)
@@ -317,17 +399,7 @@ export default function VideoPlayer({
     }
 
     registerApi(api)
-  }, [emitMute, registerApi])
-
-  const togglePlay = () => {
-    const video = videoRef.current
-    if (!video) return
-    if (video.paused) {
-      video.play().catch(() => undefined)
-    } else {
-      video.pause()
-    }
-  }
+  }, [emitMute, emitPlayback, ensurePlayback, registerApi, togglePlay])
 
   const handleSeek: React.ChangeEventHandler<HTMLInputElement> = (event) => {
     const video = videoRef.current
@@ -389,7 +461,7 @@ export default function VideoPlayer({
       {showMuteOverlay && (
         <div className="pointer-events-auto absolute left-1/2 bottom-4 z-[1000002] w-full max-w-4xl -translate-x-1/2 px-4">
           <div className="flex items-center gap-4 rounded-lg bg-black/60 px-4 py-3 text-white backdrop-blur-sm">
-            <Button type="button" variant="ghost" className="h-10 w-10 rounded-full bg-white/10 text-white" onClick={togglePlay} aria-label={isPlaying ? "Pause video" : "Play video"}>
+            <Button type="button" variant="ghost" className="h-10 w-10 rounded-full bg-white/10 text-white" onClick={() => { void togglePlay() }} aria-label={isPlaying ? "Pause video" : "Play video"}>
               {isPlaying ? "II" : "Play"}
             </Button>
             <div className="flex-1">
@@ -417,7 +489,7 @@ export default function VideoPlayer({
         <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-end bg-gradient-to-t from-black/70 via-black/20 to-transparent p-6 text-white">
           <div className="pointer-events-auto flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Button type="button" variant="ghost" className="rounded-full bg-white/10 text-white" onClick={togglePlay}>
+              <Button type="button" variant="ghost" className="rounded-full bg-white/10 text-white" onClick={() => { void togglePlay() }}>
                 {isPlaying ? "Pause" : "Play"}
               </Button>
               <span className="text-sm">{formatTime(currentTime)} / {formatTime(duration)}</span>

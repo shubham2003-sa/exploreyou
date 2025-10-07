@@ -14,7 +14,7 @@ import {
 } from "@/lib/video-progress"
 
 const SUBJECT_TITLES: Record<string, string> = {
-  science: "Science",
+  science: "Consulting",
   commerce: "Commerce",
   math: "Math",
   arts: "Arts",
@@ -134,7 +134,8 @@ export default function NextVideoPage() {
         await document.exitFullscreen().catch(() => undefined)
       }
     } finally {
-      router.push(`/next-tasks/${subject}/option-${option.toLowerCase()}`)
+      const target = `/next-tasks/${subject}/option-${option.toLowerCase()}`
+      setTimeout(() => router.push(target), 0)
     }
   }
 
