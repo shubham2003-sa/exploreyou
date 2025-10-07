@@ -1,0 +1,38 @@
+[
+  {
+    "name": "Alice",
+    "email": "alice@example.com",
+    "password": "alice123",
+    "preferences": {
+      "theme": "dark",
+      "notifications": true
+    },
+    "score": 0,
+    "stream_scores": {
+      "science": 87,
+      "math": 92
+    }
+  },
+  {
+    "name": "Bob",
+    "email": "bob@example.com",
+    "password": "bob456",
+    "preferences": {
+      "theme": "light",
+      "notifications": false
+    },
+    "score": 0,
+    "stream_scores": {}
+  },
+  {
+    "name": "Gshubham",
+    "email": "shubham2003.sa@gmail.com",
+    "password": "111111",
+    "preferences": {},
+    "score": 0,
+    "stream_scores": {
+      "commerce": 76,
+      "science": 68
+    }
+  }
+]

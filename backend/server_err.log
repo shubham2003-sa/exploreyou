@@ -1,0 +1,14 @@
+INFO:     Will watch for changes in these directories: ['C:\\Users\\Shubham\\Desktop\\exploreyou\\backend']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [47828] using StatReload
+INFO:     Started server process [47296]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [47296]
+INFO:     Started server process [41172]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.

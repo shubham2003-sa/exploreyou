@@ -1,0 +1,12 @@
+[
+	{
+		"id": 1,
+		"content": "Welcome to ExploreYou!",
+		"category": "greeting"
+	},
+	{
+		"id": 2,
+		"content": "FastAPI is a modern Python web framework.",
+		"category": "info"
+	}
+]
