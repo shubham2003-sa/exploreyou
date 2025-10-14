@@ -6,8 +6,11 @@ from urllib.parse import quote
 
 import httpx
 
-_SUPABASE_URL = os.getenv("SUPABASE_URL")
-_SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_ANON_KEY")
+_SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip() or None
+# Get service role key or fallback to anon key, ensuring no whitespace
+_service_key = (os.getenv("SUPABASE_SERVICE_ROLE_KEY") or "").strip()
+_anon_key = (os.getenv("SUPABASE_ANON_KEY") or "").strip()
+_SUPABASE_KEY = _service_key or _anon_key or None
 
 if _SUPABASE_URL:
     _REST_BASE = _SUPABASE_URL.rstrip("/") + "/rest/v1"
@@ -28,9 +31,11 @@ def _ensure_headers() -> Dict[str, str]:
     if _HEADERS is None:
         if not is_enabled():
             raise RuntimeError("Supabase is not configured")
+        if not _SUPABASE_KEY or not _SUPABASE_KEY.strip():
+            raise RuntimeError("SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY is empty or contains only whitespace")
         _HEADERS = {
-            "apikey": _SUPABASE_KEY,
-            "Authorization": f"Bearer {_SUPABASE_KEY}",
+            "apikey": _SUPABASE_KEY.strip(),
+            "Authorization": f"Bearer {_SUPABASE_KEY.strip()}",
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
@@ -82,7 +87,10 @@ async def request(
     client = await _get_client()
     merged_headers = _ensure_headers().copy()
     if headers:
-        merged_headers.update(headers)
+        # Filter out any empty/whitespace-only header values to prevent httpx errors
+        for key, value in headers.items():
+            if value and value.strip():
+                merged_headers[key] = value
     response = await client.request(method, path, params=params, json=json_body, headers=merged_headers)
     response.raise_for_status()
     return response
@@ -118,9 +126,10 @@ async def insert(
     on_conflict: Optional[str] = None,
     returning: bool = True,
 ) -> Any:
-    headers = {"Prefer": "return=representation" if returning else "return=minimal"}
+    prefer_parts = ["return=representation" if returning else "return=minimal"]
     if upsert:
-        headers["Prefer"] += ",resolution=merge-duplicates"
+        prefer_parts.append("resolution=merge-duplicates")
+    headers = {"Prefer": ",".join(prefer_parts)}
     params: Dict[str, Any] = {}
     if upsert and on_conflict:
         params["on_conflict"] = on_conflict
@@ -135,7 +144,8 @@ async def update(
     *,
     returning: bool = True,
 ) -> Any:
-    headers = {"Prefer": "return=representation" if returning else "return=minimal"}
+    prefer = "return=representation" if returning else "return=minimal"
+    headers = {"Prefer": prefer}
     params = _encode_filters(filters)
     response = await request("PATCH", f"/{table}", params=params, json_body=values, headers=headers)
     return response.json() if returning else None

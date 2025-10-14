@@ -1,10 +1,10 @@
 ﻿"use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import type { LucideIcon } from "lucide-react"
-import { Atom, Calculator, Palette, TrendingUp, Briefcase } from "lucide-react"
+import { Calculator, Palette, TrendingUp, Briefcase } from "lucide-react"
 
 import Header from "@/components/header"
 import VideoPlayer from "@/components/video-player"
@@ -29,9 +29,43 @@ type FullscreenCapableElement = HTMLDivElement & {
   mozRequestFullScreen?: () => Promise<void>
 }
 
+type OptionKey = 'A' | 'B' | 'C'
+type OptionConfig = { key: OptionKey; label: string }
+type SelectionSnapshot = { key: OptionKey; label: string }
+
+const CONSULTING_MARKET_INTEL_URL = 'https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/Monday%20630%20am.mp4'
+const CONSULTING_INTRO_LABELS: Partial<Record<OptionKey, string>> = {
+  A: "How to Play",
+  B: "Start Simulation",
+}
+const CONSULTING_PROMPT_DEFAULT_LABELS: Partial<Record<OptionKey, string>> = {
+  A: "I am okay but feeling a bit nervous!",
+  B: "I am really excited! whats next?",
+}
+const CONSULTING_PROMPT_EXCITED_LABELS: Partial<Record<OptionKey, string>> = {
+  A: "Clear Inbox",
+  B: "Review Market Intelligence",
+  C: "Take a Nap",
+}
+
+const getConsultingOptionLabel = (
+  stage: "intro" | "prompt" | "mid" | "main",
+  mode: "default" | "excitedFollowup",
+  option: OptionKey,
+): string | null => {
+  if (stage === "intro") {
+    return CONSULTING_INTRO_LABELS[option] ?? null
+  }
+  if (stage === "prompt") {
+    const lookup = mode === "excitedFollowup" ? CONSULTING_PROMPT_EXCITED_LABELS : CONSULTING_PROMPT_DEFAULT_LABELS
+    return lookup[option] ?? null
+  }
+  return null
+}
+
 const STREAMS: Stream[] = [
   {
-    id: "science",
+    id: "consulting",
     title: "Consulting",
     icon: Briefcase,
     bgColor: "bg-blue-100",
@@ -90,12 +124,302 @@ export default function StudyStreamsPage() {
   const [overlayStream, setOverlayStream] = useState<string | null>(null)
   const [overlayVideoUrl, setOverlayVideoUrl] = useState<string>(STUDY_STREAMS_VIDEO_FALLBACK_URL)
   const [overlayIntroUrl, setOverlayIntroUrl] = useState<string | null>(null)
-  const [overlayIntroPlaying, setOverlayIntroPlaying] = useState(false)
-  const [selectionMap, setSelectionMap] = useState<Record<string, string>>({})
+  const [overlayPromptUrl, setOverlayPromptUrl] = useState<string | null>(null)
+  const [overlayMidUrl, setOverlayMidUrl] = useState<string | null>(null)
+  const [overlayStage, setOverlayStage] = useState<"intro" | "prompt" | "mid" | "main">("main")
+  const overlayIntroPlaying = overlayStage !== "main"
+  const overlayIntroPlayingRef = useRef(overlayIntroPlaying)
+  const overlayPlayerApiRef = useRef<{ play: () => Promise<boolean>; pause: () => void; element?: HTMLVideoElement | null } | null>(null)
+  const overlayVideoElementRef = useRef<HTMLVideoElement | null>(null)
+  const pendingMainPlaybackRef = useRef(false)
+  const selectedOptionRef = useRef<OptionKey | null>(null)
+  const selectedOptionLabelRef = useRef<string | null>(null)
+  const [activeOptionKey, setActiveOptionKey] = useState<OptionKey | null>(null)
+  const [selectionMap, setSelectionMap] = useState<Record<string, SelectionSnapshot>>({})
+  const [consultingPromptMode, setConsultingPromptMode] = useState<"default" | "excitedFollowup">("default")
   const [overlayInitialPosition, setOverlayInitialPosition] = useState<number | null>(null)
   const overlayLastRecordRef = useRef<VideoProgressRecord | null>(null)
   const autoResumeRef = useRef(false)
   const navigatingRef = useRef(false)
+  const unmountedRef = useRef(false)
+
+  useEffect(() => {
+    overlayIntroPlayingRef.current = overlayIntroPlaying
+  }, [overlayIntroPlaying])
+
+  useEffect(() => {
+    setActiveOptionKey(null)
+  }, [overlayStage, consultingPromptMode, overlayStream])
+
+  useEffect(() => {
+    return () => {
+      unmountedRef.current = true
+      try {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          document.exitFullscreen().catch(() => undefined)
+        }
+      } catch {
+        // ignore exit fullscreen errors during unmount
+      }
+      if (overlayContainer && overlayContainer.parentNode) {
+        try {
+          overlayContainer.parentNode.removeChild(overlayContainer)
+        } catch {
+          // ignore removal errors during unmount
+        }
+      }
+    }
+  }, [overlayContainer])
+
+  const resetTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+    timerStartedRef.current = false
+    setTimerVisible(false)
+    setTimerProgress(1)
+  }, [])
+
+  const closeOverlay = useCallback(() => {
+    try {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        const exitResult = document.exitFullscreen()
+        if (exitResult instanceof Promise) {
+          exitResult.catch(() => {})
+        }
+      }
+    } catch (error) {
+      console.error("Failed to exit fullscreen", error)
+    }
+
+    resetTimer()
+
+    if (overlayContainer) {
+      try {
+        if (overlayContainer.parentNode) {
+          overlayContainer.parentNode.removeChild(overlayContainer)
+        }
+      } catch (error) {
+        console.error("Failed to remove overlay container", error)
+      }
+    }
+
+    setOverlayContainer(null)
+    setOverlayStream(null)
+    setOverlayInitialPosition(null)
+    overlayLastRecordRef.current = null
+    setOverlayIntroUrl(null)
+    setOverlayPromptUrl(null)
+    setOverlayMidUrl(null)
+    setOverlayStage("main")
+    setConsultingPromptMode("default")
+    overlayIntroPlayingRef.current = false
+    overlayPlayerApiRef.current = null
+    overlayVideoElementRef.current = null
+    pendingMainPlaybackRef.current = false
+    selectedOptionRef.current = null
+    selectedOptionLabelRef.current = null
+    setActiveOptionKey(null)
+    setIsLoading(false)
+    setPendingStream(null)
+  }, [overlayContainer, resetTimer])
+
+  const transitionToMainStage = useCallback(() => {
+    pendingMainPlaybackRef.current = true
+    overlayIntroPlayingRef.current = false
+    resetTimer()
+    setOverlayMidUrl(null)
+    setOverlayStage("main")
+    setConsultingPromptMode("default")
+    overlayVideoElementRef.current = null
+    overlayPlayerApiRef.current = null
+  }, [resetTimer])
+
+  const rememberSelection = useCallback((streamId: string, option: OptionKey, optionLabel?: string) => {
+    if (typeof window === 'undefined') return
+    setSelectionMap((prev) => {
+      const record: SelectionSnapshot = {
+        key: option,
+        label: optionLabel ?? `Option ${option}`,
+      }
+      const next = { ...prev, [streamId]: record }
+      try {
+        window.localStorage.setItem(SELECTION_STORAGE_KEY, JSON.stringify(next))
+      } catch (error) {
+        console.warn('failed to persist selection', error)
+      }
+      return next
+    })
+  }, [])
+
+  const navigateWithOption = useCallback((option: OptionKey, optionLabel?: string | null) => {
+    const streamId = overlayStream
+    if (!streamId) return
+
+    const labelSegment = optionLabel ? `&label=${encodeURIComponent(optionLabel)}` : ""
+    const target = `/task-simulation/${streamId}?option=${option}${labelSegment}`
+    navigatingRef.current = true
+    pendingMainPlaybackRef.current = false
+    selectedOptionRef.current = null
+    selectedOptionLabelRef.current = null
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+    setTimerVisible(false)
+    setTimerProgress(1)
+    setIsLoading(true)
+
+    try {
+      overlayPlayerApiRef.current?.pause()
+      const currentVideo = overlayVideoElementRef.current
+      if (currentVideo) {
+        currentVideo.pause()
+      }
+    } catch {
+      // ignore pause errors
+    }
+
+    const pushTarget = () => {
+      void router.push(target)
+    }
+
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => undefined).finally(pushTarget)
+    } else {
+      pushTarget()
+    }
+  }, [overlayStream, router])
+
+  const handleOptionSelection = useCallback((option: OptionKey) => {
+    const streamId = overlayStream
+    if (!streamId) return
+    setActiveOptionKey(option)
+
+    const fallbackLabel = `Option ${option}`
+    const optionLabel =
+      streamId === "consulting"
+        ? getConsultingOptionLabel(overlayStage, consultingPromptMode, option) ?? fallbackLabel
+        : fallbackLabel
+
+    const latest = overlayLastRecordRef.current
+    const activeVideoUrl =
+      overlayStage === "intro" && overlayIntroUrl
+        ? overlayIntroUrl
+        : overlayStage === "prompt" && overlayPromptUrl
+          ? overlayPromptUrl
+          : overlayStage === "mid" && overlayMidUrl
+            ? overlayMidUrl
+            : overlayVideoUrl
+    void recordVideoProgressEvent({
+      videoId: streamId,
+      videoUrl: activeVideoUrl,
+      progress: latest?.progress ?? 1,
+      positionSeconds: latest?.position_seconds ?? 0,
+      durationSeconds: latest?.duration_seconds ?? undefined,
+      streamSelected: `${streamId}:Option${option}`,
+      taskStatus: 'in_progress',
+      eventName: `task_option_selected:Option${option}`,
+    })
+    rememberSelection(streamId, option, optionLabel)
+
+    const pauseCurrentVideo = (resetTime = true) => {
+      overlayPlayerApiRef.current?.pause()
+      const currentVideo = overlayVideoElementRef.current
+      if (!currentVideo) return
+      try {
+        currentVideo.pause()
+        if (resetTime) {
+          currentVideo.currentTime = 0
+        }
+      } catch {
+        // ignore reset errors
+      }
+    }
+
+    const isConsultingStreamSelection = streamId === "consulting"
+
+    if (isConsultingStreamSelection) {
+      if (overlayStage === "intro") {
+        pauseCurrentVideo()
+        setConsultingPromptMode("default")
+        overlayIntroPlayingRef.current = true
+        setOverlayStage("prompt")
+        pendingMainPlaybackRef.current = false
+        selectedOptionRef.current = null
+        selectedOptionLabelRef.current = null
+        return
+      }
+
+      if (overlayStage === "prompt") {
+        if (consultingPromptMode === "default") {
+          if (option === "B") {
+            setConsultingPromptMode("excitedFollowup")
+            selectedOptionRef.current = null
+            selectedOptionLabelRef.current = null
+            return
+          }
+          pauseCurrentVideo()
+          selectedOptionRef.current = option
+          selectedOptionLabelRef.current = optionLabel
+          transitionToMainStage()
+          return
+        }
+
+        if (consultingPromptMode === "excitedFollowup") {
+          if (option === "B") {
+            pauseCurrentVideo(false)
+            selectedOptionRef.current = "B"
+            selectedOptionLabelRef.current = optionLabel
+            setOverlayMidUrl(CONSULTING_MARKET_INTEL_URL)
+            setOverlayStage("mid")
+            overlayIntroPlayingRef.current = true
+            pendingMainPlaybackRef.current = false
+            return
+          }
+          if (option === "A") {
+            pauseCurrentVideo(false)
+            selectedOptionRef.current = "A"
+            selectedOptionLabelRef.current = optionLabel
+            navigateWithOption("A", optionLabel)
+            return
+          }
+          if (option === "C") {
+            pauseCurrentVideo(false)
+            selectedOptionRef.current = "C"
+            selectedOptionLabelRef.current = optionLabel
+            navigateWithOption("C", optionLabel)
+            return
+          }
+          return
+        }
+      }
+    }
+
+    if (overlayStage !== "main") {
+      pauseCurrentVideo()
+      selectedOptionRef.current = option
+      selectedOptionLabelRef.current = optionLabel
+      transitionToMainStage()
+      return
+    }
+
+    selectedOptionRef.current = option
+    selectedOptionLabelRef.current = optionLabel
+    navigateWithOption(option, optionLabel)
+  }, [
+    overlayStream,
+    overlayStage,
+    consultingPromptMode,
+    overlayIntroUrl,
+    overlayPromptUrl,
+    overlayMidUrl,
+    overlayVideoUrl,
+    rememberSelection,
+    navigateWithOption,
+    transitionToMainStage,
+  ])
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'production') {
@@ -114,10 +438,30 @@ export default function StudyStreamsPage() {
     if (typeof window === 'undefined') return
     try {
       const raw = window.localStorage.getItem(SELECTION_STORAGE_KEY)
-      if (raw) {
-        const parsed = JSON.parse(raw) as Record<string, string>
-        setSelectionMap(parsed)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as Record<string, SelectionSnapshot | string>
+      const normalized: Record<string, SelectionSnapshot> = {}
+      for (const [streamId, value] of Object.entries(parsed)) {
+        if (value && typeof value === "object" && "key" in value && "label" in value) {
+          const keyCandidate = String(value.key).toUpperCase()
+          const key: OptionKey = keyCandidate === "B" ? "B" : keyCandidate === "C" ? "C" : "A"
+          normalized[streamId] = {
+            key,
+            label: typeof value.label === "string" && value.label.length > 0 ? value.label : `Option ${key}`,
+          }
+          continue
+        }
+        if (typeof value === "string" && value.length > 0) {
+          const trimmed = value.trim()
+          const keyCandidate = trimmed.charAt(0).toUpperCase()
+          const key: OptionKey = keyCandidate === "B" ? "B" : keyCandidate === "C" ? "C" : "A"
+          normalized[streamId] = {
+            key,
+            label: trimmed.length === 1 ? `Option ${key}` : trimmed,
+          }
+        }
       }
+      setSelectionMap(normalized)
     } catch (error) {
       console.warn('failed to load selections', error)
     }
@@ -148,84 +492,6 @@ export default function StudyStreamsPage() {
       cancelled = true
     }
   }, [overlayStream])
-
-    const rememberSelection = useCallback((streamId: string, option: string) => {
-    if (typeof window === 'undefined') return
-    setSelectionMap((prev) => {
-      const next = { ...prev, [streamId]: option }
-      try {
-        window.localStorage.setItem(SELECTION_STORAGE_KEY, JSON.stringify(next))
-      } catch (error) {
-        console.warn('failed to persist selection', error)
-      }
-      return next
-    })
-  }, [])
-
-  useEffect(() => {
-    if (!overlayStream) {
-      setOverlayInitialPosition(null)
-      overlayLastRecordRef.current = null
-      return
-    }
-
-    let cancelled = false
-    const load = async () => {
-      try {
-        const record = await fetchLatestProgressForVideo(overlayStream)
-        if (!cancelled) {
-          setOverlayInitialPosition(record?.position_seconds ?? null)
-          overlayLastRecordRef.current = record ?? null
-        }
-      } catch (error) {
-        console.warn('[study-streams] failed to load saved progress', error)
-      }
-    }
-
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [overlayStream])
-
-const closeOverlay = useCallback(() => {
-    try {
-      if (document.fullscreenElement && document.exitFullscreen) {
-        const exitResult = document.exitFullscreen()
-        if (exitResult instanceof Promise) {
-          exitResult.catch(() => {})
-        }
-      }
-    } catch (error) {
-      console.error("Failed to exit fullscreen", error)
-    }
-
-    if (timerRef.current) {
-      clearInterval(timerRef.current)
-      timerRef.current = null
-    }
-
-    timerStartedRef.current = false
-    setTimerVisible(false)
-    setTimerProgress(1)
-
-    if (overlayContainer) {
-      try {
-        if (overlayContainer.parentNode) {
-          overlayContainer.parentNode.removeChild(overlayContainer)
-        }
-      } catch (error) {
-        console.error("Failed to remove overlay container", error)
-      }
-    }
-
-    setOverlayContainer(null)
-    setOverlayStream(null)
-    setOverlayInitialPosition(null)
-    overlayLastRecordRef.current = null
-    setIsLoading(false)
-    setPendingStream(null)
-  }, [overlayContainer])
 
   useEffect(() => {
     let active = true
@@ -277,6 +543,21 @@ const closeOverlay = useCallback(() => {
   }, [overlayStream])
 
   useEffect(() => {
+    const timerEligible =
+      overlayStage === "main" ||
+      (overlayStage === "prompt" && overlayStream === "consulting" && consultingPromptMode === "excitedFollowup")
+
+    if (!timerEligible) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+      timerStartedRef.current = false
+      setTimerVisible(false)
+      setTimerProgress(1)
+      return
+    }
+
     if (!overlayContainer || !overlayStream || timerStartedRef.current) {
       return
     }
@@ -314,7 +595,7 @@ const closeOverlay = useCallback(() => {
       setTimerVisible(false)
       setTimerProgress(1)
     }
-  }, [overlayContainer, overlayStream, closeOverlay, router])
+  }, [overlayContainer, overlayStream, overlayStage, consultingPromptMode, closeOverlay, router])
 
   const handleExplore = useCallback((streamId: string) => {
     if (overlayContainer) {
@@ -348,14 +629,24 @@ const closeOverlay = useCallback(() => {
             setOverlayContainer(div)
             setOverlayStream(streamId)
             // Consulting: play an extra intro video first, then fall back to the resolved stream video
-            if (streamId === 'science') {
-              setOverlayIntroUrl('https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/in%20flight%20option%20for%20excited.mp4')
-              setOverlayIntroPlaying(true)
-              // After intro, play this specific Airplane Video instead of the default generated clip
+            pendingMainPlaybackRef.current = false
+            selectedOptionRef.current = null
+            if (streamId === 'consulting') {
+              setOverlayIntroUrl('https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/ExploreYou%20Intro.mp4')
+              setOverlayPromptUrl('https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/in%20flight%20option%20for%20excited.mp4')
+              setOverlayMidUrl(null)
+              setConsultingPromptMode("default")
+              setOverlayStage("intro")
+              overlayIntroPlayingRef.current = true
+              // After prompt, play this specific Airplane Video instead of the default generated clip
               setOverlayVideoUrl('https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/Airplane%20Video.mp4')
             } else {
               setOverlayIntroUrl(null)
-              setOverlayIntroPlaying(false)
+              setOverlayPromptUrl(null)
+              setOverlayMidUrl(null)
+              setConsultingPromptMode("default")
+              setOverlayStage("main")
+              overlayIntroPlayingRef.current = false
             }
             setIsLoading(false)
             setPendingStream(null)
@@ -401,8 +692,13 @@ const closeOverlay = useCallback(() => {
           const subject = videoId.replace('simulation-', '')
           if (subject) {
             const optionToken = latest.event_name?.split(':')[1]
-            const optionValue = optionToken?.replace('Option', '') ?? selectionMap[subject] ?? 'A'
-            router.replace(`/task-simulation/${subject}?option=${optionValue}`)
+            const storedSelection = selectionMap[subject]
+            const tokenValue = optionToken ? optionToken.replace('Option', '').trim() : null
+            const normalizedOption = tokenValue && tokenValue.length > 0 ? tokenValue.charAt(0).toUpperCase() : null
+            const optionValue = (normalizedOption ?? storedSelection?.key ?? 'A') as OptionKey
+            const labelValue = storedSelection?.label
+            const labelSegment = labelValue ? `&label=${encodeURIComponent(labelValue)}` : ""
+            router.replace(`/task-simulation/${subject}?option=${optionValue}${labelSegment}`)
           }
           return
         }
@@ -432,12 +728,58 @@ const closeOverlay = useCallback(() => {
     }
   }, [handleExplore, router, selectionMap])
 
+  const isConsultingStream = overlayStream === "consulting"
+  const isIntroStage = overlayStage === "intro"
+  const shouldShowOptionBar =
+    (overlayStage !== "intro" || (isConsultingStream && isIntroStage)) &&
+    !(isConsultingStream && overlayStage === "main")
+  const optionConfigs = useMemo<OptionConfig[]>(() => {
+    if (!shouldShowOptionBar) return []
+    if (!isConsultingStream) {
+      return [
+        { key: "A", label: "How to Play" },
+        { key: "B", label: "Start Simulation" },
+      ]
+    }
+    if (overlayStage === "intro") {
+      return [
+        { key: "A", label: "How to Play" },
+        { key: "B", label: "Start Simulation" },
+      ]
+    }
+    if (overlayStage === "mid") {
+      return []
+    }
+    if (overlayStage === "prompt") {
+      if (consultingPromptMode === "excitedFollowup") {
+        return [
+          { key: "A", label: "Clear Inbox" },
+          { key: "B", label: "Review Market Intelligence" },
+          { key: "C", label: "Take a Nap" },
+        ]
+      }
+      return [
+        { key: "A", label: "I am okay but feeling a bit nervous!" },
+        { key: "B", label: "I am really excited! whats next?" },
+      ]
+    }
+    if (overlayStage === "main" && isConsultingStream) {
+      return []
+    }
+    return [
+      { key: "A", label: "I am okay but feeling a bit nervous!" },
+      { key: "B", label: "I am really excited! whats next?" },
+    ]
+  }, [shouldShowOptionBar, isConsultingStream, overlayStage, consultingPromptMode])
+
   const spinnerOverlay = isLoading ? (
     <div className="fixed inset-0 z-[1000100] flex items-center justify-center bg-black/70 text-white">
       <div className="flex flex-col items-center gap-3">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/30 border-t-white" />
         {pendingStream ? (
-          <span className="text-lg font-medium capitalize">Preparing {pendingStream}</span>
+          <span className="text-lg font-medium capitalize">
+            Preparing {STREAMS.find((stream) => stream.id === pendingStream)?.title ?? pendingStream}
+          </span>
         ) : (
           <span className="text-lg font-medium">Loading</span>
         )}
@@ -476,7 +818,7 @@ const closeOverlay = useCallback(() => {
                     <h3 className="text-xl font-semibold">{stream.title}</h3>
                     <p className="text-sm text-muted-foreground">{stream.description}</p>
                     {selectionMap[stream.id] && (
-                      <p className="text-xs text-muted-foreground">Last option: Option {selectionMap[stream.id]}</p>
+                      <p className="text-xs text-muted-foreground">Last option: {selectionMap[stream.id].label}</p>
                     )}
                   </div>
 
@@ -511,26 +853,86 @@ const closeOverlay = useCallback(() => {
             </div>
             <div className="relative flex h-full w-full items-center justify-center z-[1000001]">
               <VideoPlayer
-                src={overlayIntroPlaying && overlayIntroUrl ? overlayIntroUrl : overlayVideoUrl}
+                key={`${overlayStream ?? "unknown"}-${overlayStage}`}
+                src={
+                  overlayStage === "intro" && overlayIntroUrl
+                    ? overlayIntroUrl
+                    : overlayStage === "prompt" && overlayPromptUrl
+                      ? overlayPromptUrl
+                      : overlayStage === "mid" && overlayMidUrl
+                        ? overlayMidUrl
+                        : overlayVideoUrl
+                }
                 className="h-full w-full object-cover"
                 showOptions={false}
                 hideControls={false}
                 autoplay
                 startFullscreen={false}
-                forceMuted={overlayIntroPlaying}
+                registerApi={(api) => {
+                  overlayPlayerApiRef.current = {
+                    play: api.play,
+                    pause: api.pause,
+                    element: api.element ?? null,
+                  }
+                  overlayVideoElementRef.current = api.element ?? null
+                  if (overlayStage === "main") {
+                    if (pendingMainPlaybackRef.current) {
+                      pendingMainPlaybackRef.current = false
+                      void api.play().catch(() => undefined)
+                    }
+                  }
+                }}
                 trackingConfig={{
-                  videoId: overlayIntroPlaying ? `${overlayStream}-intro` : overlayStream,
-                  videoUrl: overlayIntroPlaying && overlayIntroUrl ? overlayIntroUrl : overlayVideoUrl,
+                  videoId:
+                    overlayStage === "intro"
+                      ? `${overlayStream}-intro`
+                      : overlayStage === "prompt"
+                        ? `${overlayStream}-prompt`
+                        : overlayStage === "mid"
+                          ? `${overlayStream}-market-intel`
+                          : overlayStream ?? "",
+                  videoUrl:
+                    overlayStage === "intro" && overlayIntroUrl
+                      ? overlayIntroUrl
+                      : overlayStage === "prompt" && overlayPromptUrl
+                        ? overlayPromptUrl
+                        : overlayStage === "mid" && overlayMidUrl
+                          ? overlayMidUrl
+                          : overlayVideoUrl,
                   streamSelected: overlayStream ?? undefined,
                 }}
-                initialPositionSeconds={overlayInitialPosition}
+                initialPositionSeconds={overlayStage === "main" ? overlayInitialPosition : null}
                 onTrackedEvent={(record, eventName) => {
                   if (record) {
                     overlayLastRecordRef.current = record
                   }
-                  if (overlayIntroPlaying && eventName === 'video_completed') {
-                    // switch to main overlay video when intro finishes
-                    setOverlayIntroPlaying(false)
+                  if (overlayStage === "intro" && eventName === 'video_completed') {
+                    if (overlayPromptUrl) {
+                      setConsultingPromptMode("default")
+                      setOverlayStage("prompt")
+                      overlayIntroPlayingRef.current = true
+                    } else {
+                      transitionToMainStage()
+                    }
+                    return
+                  }
+                  if (overlayStage === "prompt" && eventName === 'video_completed') {
+                    transitionToMainStage()
+                    return
+                  }
+                  if (overlayStage === "mid" && eventName === 'video_completed') {
+                    transitionToMainStage()
+                    return
+                  }
+                  if (overlayStage === "main" && eventName === 'video_completed') {
+                    if (selectedOptionRef.current) {
+                      navigateWithOption(selectedOptionRef.current, selectedOptionLabelRef.current)
+                    } else {
+                      closeOverlay()
+                      if (!navigatingRef.current) {
+                        router.push("/study-streams")
+                      }
+                    }
                   }
                 }}
               />
@@ -550,74 +952,29 @@ const closeOverlay = useCallback(() => {
               </div>
             )}
 
-            {!overlayIntroPlaying && (
+            {shouldShowOptionBar && optionConfigs.length > 0 && (
             <div className="pointer-events-auto fixed left-0 right-0 bottom-0 z-[1000003]" style={{ height: "9.5rem" }}>
               <div className="flex h-full w-full items-start bg-black/95">
-                <button
-                  aria-label="How to Play"
-                  className="flex-1 h-full pt-6 text-xl font-normal tracking-normal text-white hover:bg-black/95 md:text-2xl"
-                  style={{ background: "transparent", border: "none" }}
-                  onClick={() => {
-                    if (!overlayStream) return
-                    rememberSelection(overlayStream, 'A')
-                    const option = 'A'
-                    const latest = overlayLastRecordRef.current
-                    void recordVideoProgressEvent({
-                      videoId: overlayStream,
-                      videoUrl: overlayVideoUrl,
-                      progress: latest?.progress ?? 1,
-                      positionSeconds: latest?.position_seconds ?? 0,
-                      durationSeconds: latest?.duration_seconds ?? undefined,
-                      streamSelected: `${overlayStream}:Option${option}`,
-                      taskStatus: 'in_progress',
-                      eventName: `task_option_selected:Option${option}`,
-                    })
-                    navigatingRef.current = true
-                    closeOverlay()
-                    if (document.fullscreenElement && document.exitFullscreen) {
-                      document.exitFullscreen().catch(() => undefined).finally(() => {
-                        router.push(`/task-simulation/${overlayStream}?option=${option}`)
-                      })
-                    } else {
-                      router.push(`/task-simulation/${overlayStream}?option=${option}`)
-                    }
-                  }}
-                >
-                  <span className="mt-0">How to Play</span>
-                </button>
-                <div className="w-px bg-white/20" />
-                <button
-                  aria-label="Start Simulation"
-                  className="flex-1 h-full pt-6 text-xl font-normal tracking-normal text-white hover:bg-black/95 md:text-2xl"
-                  style={{ background: "transparent", border: "none" }}
-                  onClick={() => {
-                    if (!overlayStream) return
-                    rememberSelection(overlayStream, 'B')
-                    const option = 'B'
-                    const latest = overlayLastRecordRef.current
-                    void recordVideoProgressEvent({
-                      videoId: overlayStream,
-                      videoUrl: overlayVideoUrl,
-                      progress: latest?.progress ?? 1,
-                      positionSeconds: latest?.position_seconds ?? 0,
-                      durationSeconds: latest?.duration_seconds ?? undefined,
-                      streamSelected: `${overlayStream}:Option${option}`,
-                      taskStatus: 'in_progress',
-                      eventName: `task_option_selected:Option${option}`,
-                    })
-                    navigatingRef.current = true
-                    closeOverlay()
-                    if (document.fullscreenElement && document.exitFullscreen) {
-                      document.exitFullscreen().catch(() => undefined).finally(() => {
-                        router.push(`/task-simulation/${overlayStream}?option=${option}`)
-                      })
-                    } else {
-                      router.push(`/task-simulation/${overlayStream}?option=${option}`)
-                    }
-                  }}
-                >
-                  <span className="mt-0">Start Simulation</span>
-                </button>
+                {optionConfigs.map((config, index) => {
+                  const isSelected = activeOptionKey === config.key
+                  return (
+                    <Fragment key={config.key}>
+                      {index > 0 && <div className="w-px bg-white/20" />}
+                      <button
+                        aria-label={config.label}
+                        className={`flex-1 h-full px-6 py-6 text-xl font-normal tracking-normal md:text-2xl transition-colors flex items-center justify-center text-center ${
+                          isSelected
+                            ? "bg-white text-black hover:bg-white focus:bg-white"
+                            : "bg-transparent text-white hover:bg-white/10"
+                        }`}
+                        style={{ border: "none" }}
+                        onClick={() => handleOptionSelection(config.key)}
+                      >
+                        <span className="leading-snug">{config.label}</span>
+                      </button>
+                    </Fragment>
+                  )
+                })}
               </div>
             </div>
             )}

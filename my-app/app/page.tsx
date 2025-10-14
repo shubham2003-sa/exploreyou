@@ -18,9 +18,8 @@ export default function HomePage() {
   const [isMuted, setIsMuted] = React.useState(true)
   const [isPlaying, setIsPlaying] = React.useState(false)
   const [heroVideoUrl, setHeroVideoUrl] = React.useState<string>(INTRO_VIDEO_FALLBACK_URL)
-  const playerApiRef = React.useRef<{ togglePlay: () => Promise<boolean>; setMuted: (muted: boolean) => void } | null>(null)
-  const toggleLockRef = React.useRef(false)
-  const lastToggleTsRef = React.useRef(0)
+  const playerApiRef = React.useRef<{ togglePlay: () => Promise<boolean>; setMuted: (muted: boolean) => void; play: () => Promise<boolean>; element?: HTMLVideoElement | null } | null>(null)
+  const hasAutoplayedRef = React.useRef(false)
 
   React.useEffect(() => {
     let active = true
@@ -41,19 +40,16 @@ export default function HomePage() {
   }, [])
 
   const toggleHeroPlay = async () => {
-    if (toggleLockRef.current) return
-    toggleLockRef.current = true
-    lastToggleTsRef.current = Date.now()
-    try {
-      const api = playerApiRef.current
-      if (!api) return
-      const nextPlaying = await api.togglePlay()
-      setIsPlaying(nextPlaying)
-    } finally {
-      window.setTimeout(() => {
-        toggleLockRef.current = false
-      }, 250)
+    const api = playerApiRef.current
+    if (!api?.element) return
+    
+    // Toggle the video directly
+    if (api.element.paused) {
+      await api.play()
+    } else {
+      api.element.pause()
     }
+    // State will update via onPlaybackChange
   }
 
   const toggleHeroMute = () => {
@@ -67,6 +63,7 @@ export default function HomePage() {
           src={heroVideoUrl}
           className="h-full w-full object-cover"
           autoplay={false}
+          loop={true}
           poster=""
           showOptions={false}
           startFullscreen={false}
@@ -75,22 +72,27 @@ export default function HomePage() {
           isMuted={isMuted}
           setIsMuted={setIsMuted}
           onPlaybackChange={(playing) => {
-            const sinceClick = Date.now() - lastToggleTsRef.current
-            // Always accept play transitions immediately so the label updates
-            if (playing) {
-              setIsPlaying(true)
-              return
-            }
-            // Debounce only pause transitions triggered right after our click
-            if (sinceClick < 150) return
-            setIsPlaying(false)
+            setIsPlaying(playing)
           }}
           registerApi={(api) => {
             playerApiRef.current = {
               togglePlay: api.togglePlay,
               setMuted: api.setMuted,
+              play: api.play,
+              element: api.element,
             }
-            setIsPlaying(!api.element?.paused)
+            
+            // Autoplay on first load
+            if (!hasAutoplayedRef.current && api.element) {
+              hasAutoplayedRef.current = true
+              // Small delay to ensure video is ready
+              setTimeout(() => {
+                void api.play().then((success) => {
+                  // State will be updated via onPlaybackChange
+                  console.log('[HomePage] Autoplay result:', success)
+                })
+              }, 100)
+            }
           }}
         />
         <div className="pointer-events-none absolute inset-0 h-full w-full bg-black/60" />

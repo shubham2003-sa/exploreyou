@@ -355,84 +355,87 @@ export default function SessionTracker() {
     }
   }, [pathname, endSession, startSession])
 
-  useEffect(() => {
-    if (typeof window === "undefined") return
+  // PAUSED: Mouse movement tracking disabled to save memory/bandwidth
+  // useEffect(() => {
+  //   if (typeof window === "undefined") return
 
-    const handleMouseMove = (event: MouseEvent) => {
-      lastPointerRef.current = { x: event.clientX, y: event.clientY }
-      const states = cursorStatesRef.current
-      if (!states.size) return
-      const timestamp = nowMs()
-      states.forEach((state) => {
-        const dx = event.clientX - state.def.x
-        const dy = event.clientY - state.def.y
-        const inside = dx * dx + dy * dy <= state.def.radius * state.def.radius
-        if (inside && !state.inside) {
-          markEntered(state, timestamp)
-        } else if (!inside && state.inside) {
-          markLeft(state, timestamp)
-        }
-      })
-    }
+  //   const handleMouseMove = (event: MouseEvent) => {
+  //     lastPointerRef.current = { x: event.clientX, y: event.clientY }
+  //     const states = cursorStatesRef.current
+  //     if (!states.size) return
+  //     const timestamp = nowMs()
+  //     states.forEach((state) => {
+  //       const dx = event.clientX - state.def.x
+  //       const dy = event.clientY - state.def.y
+  //       const inside = dx * dx + dy * dy <= state.def.radius * state.def.radius
+  //       if (inside && !state.inside) {
+  //         markEntered(state, timestamp)
+  //       } else if (!inside && state.inside) {
+  //         markLeft(state, timestamp)
+  //       }
+  //     })
+  //   }
 
-    const handleMouseLeave = () => {
-      const states = cursorStatesRef.current
-      if (!states.size) return
-      const timestamp = nowMs()
-      states.forEach((state) => {
-        if (state.inside) {
-          markLeft(state, timestamp)
-        }
-      })
-    }
+  //   const handleMouseLeave = () => {
+  //     const states = cursorStatesRef.current
+  //     if (!states.size) return
+  //     const timestamp = nowMs()
+  //     states.forEach((state) => {
+  //       if (state.inside) {
+  //         markLeft(state, timestamp)
+  //       }
+  //     })
+  //   }
 
-    const handleMouseOut = (event: MouseEvent) => {
-      if (!event.relatedTarget) {
-        handleMouseLeave()
-      }
-    }
+  //   const handleMouseOut = (event: MouseEvent) => {
+  //     if (!event.relatedTarget) {
+  //       handleMouseLeave()
+  //     }
+  //   }
 
-    window.addEventListener("mousemove", handleMouseMove)
-    window.addEventListener("mouseout", handleMouseOut)
-    window.addEventListener("blur", handleMouseLeave)
+  //   window.addEventListener("mousemove", handleMouseMove)
+  //   window.addEventListener("mouseout", handleMouseOut)
+  //   window.addEventListener("blur", handleMouseLeave)
 
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove)
-      window.removeEventListener("mouseout", handleMouseOut)
-      window.removeEventListener("blur", handleMouseLeave)
-    }
-  }, [markEntered, markLeft])
+  //   return () => {
+  //     window.removeEventListener("mousemove", handleMouseMove)
+  //     window.removeEventListener("mouseout", handleMouseOut)
+  //     window.removeEventListener("blur", handleMouseLeave)
+  //   }
+  // }, [markEntered, markLeft])
 
-  useEffect(() => {
-    const clickHandler = (e: MouseEvent) => {
-      if (!psidRef.current) return
-      queueRef.current.push({
-        event_type: "click",
-        x: Math.floor(e.clientX),
-        y: Math.floor(e.clientY),
-        ts_ms: Date.now(),
-      })
-    }
+  // PAUSED: Click tracking disabled to save memory/bandwidth
+  // useEffect(() => {
+  //   const clickHandler = (e: MouseEvent) => {
+  //     if (!psidRef.current) return
+  //     queueRef.current.push({
+  //       event_type: "click",
+  //       x: Math.floor(e.clientX),
+  //       y: Math.floor(e.clientY),
+  //       ts_ms: Date.now(),
+  //     })
+  //   }
 
-    window.addEventListener("click", clickHandler)
+  //   window.addEventListener("click", clickHandler)
 
-    return () => {
-      window.removeEventListener("click", clickHandler)
-    }
-  }, [])
+  //   return () => {
+  //     window.removeEventListener("click", clickHandler)
+  //   }
+  // }, [])
 
-  useEffect(() => {
-    flushTimerRef.current = window.setInterval(() => {
-      void flushQueue()
-    }, 2000) as unknown as number
+  // PAUSED: Event queue flushing disabled to save memory/bandwidth
+  // useEffect(() => {
+  //   flushTimerRef.current = window.setInterval(() => {
+  //     void flushQueue()
+  //   }, 2000) as unknown as number
 
-    return () => {
-      if (flushTimerRef.current) {
-        clearInterval(flushTimerRef.current as unknown as number)
-        flushTimerRef.current = null
-      }
-    }
-  }, [flushQueue])
+  //   return () => {
+  //     if (flushTimerRef.current) {
+  //       clearInterval(flushTimerRef.current as unknown as number)
+  //       flushTimerRef.current = null
+  //     }
+  //   }
+  // }, [flushQueue])
 
   useEffect(() => {
     const handleVisibilityChange = () => {

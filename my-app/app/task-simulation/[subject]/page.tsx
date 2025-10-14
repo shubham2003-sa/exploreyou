@@ -11,10 +11,16 @@ import { useScore } from "@/components/score-provider"
 import { recordVideoProgressEvent } from "@/lib/video-progress"
 
 const SUBJECT_TITLES: Record<string, string> = {
-  science: "Science",
+  consulting: "Consulting",
   commerce: "Commerce",
   math: "Math",
   arts: "Arts",
+}
+
+const CONSULTING_OPTION_FALLBACK_LABELS: Record<string, string> = {
+  A: "I am okay but feeling a bit nervous!",
+  B: "Review Market Intelligence",
+  C: "Take a Nap",
 }
 
 const INITIAL_SCORES = {
@@ -37,8 +43,14 @@ export default function TaskSimulationPage() {
   const router = useRouter()
   const subject = (params.subject as string) ?? ""
   const option = searchParams.get("option")
+  const optionKey = option ? option.toUpperCase() : null
+  const optionLabelParam = searchParams.get("label")
+  const displaySubject = SUBJECT_TITLES[subject] || subject
+  const displayOptionLabel =
+    optionLabelParam ??
+    (subject === "consulting" && optionKey ? CONSULTING_OPTION_FALLBACK_LABELS[optionKey] ?? `Option ${optionKey}` : optionKey ? `Option ${optionKey}` : null)
   const simulationVideoId = `simulation-${subject}`
-  const streamTag = option ? `${subject}:Option${option}` : subject
+  const streamTag = displayOptionLabel ? `${subject}:${displayOptionLabel}` : optionKey ? `${subject}:Option${optionKey}` : subject
 
   const [scores, setScores] = useState(INITIAL_SCORES)
   const { recordScore } = useScore()
@@ -72,7 +84,7 @@ export default function TaskSimulationPage() {
         parseInt(nextScores.score4, 10)) /
         4,
     )
-    void recordScore({ pointsEarned: average, pointsPossible: 100, source: `analysis:${subject}:${option ?? "default"}` })
+    void recordScore({ pointsEarned: average, pointsPossible: 100, source: `analysis:${subject}:${optionKey ?? "default"}` })
     const profile = loadAuthProfile()
     const email = profile?.email
     if (!email) {
@@ -144,10 +156,13 @@ export default function TaskSimulationPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header title={SUBJECT_TITLES[subject] || subject} />
+      <Header title={displaySubject} />
 
       <main className="px-8 py-8">
         <div className="mx-auto max-w-6xl">
+          {displayOptionLabel && (
+            <div className="mb-6 text-sm text-muted-foreground">Selected path: {displayOptionLabel}</div>
+          )}
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
             <div className="space-y-6 lg:col-span-2">
               <div className="rounded-lg border-2 border-foreground p-6">
@@ -155,9 +170,10 @@ export default function TaskSimulationPage() {
                 <p className="leading-relaxed text-muted-foreground">
                   This is where the task description will go. Users will read this to understand what they need to do
                   for the simulation.
-                  {option && ` You selected Option ${option} from the video.`} The task involves analyzing data patterns
-                  and making informed decisions based on the information provided. Your performance will be evaluated
-                  across multiple criteria to give you comprehensive feedback on your analytical skills.
+                  {displayOptionLabel && ` You selected ${displayOptionLabel} from the video.`} The task involves
+                  analyzing data patterns and making informed decisions based on the information provided. Your
+                  performance will be evaluated across multiple criteria to give you comprehensive feedback on your
+                  analytical skills.
                 </p>
               </div>
             </div>

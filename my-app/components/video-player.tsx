@@ -93,24 +93,36 @@ export default function VideoPlayer({
 
   const effectiveMuted = useMemo(() => forceMuted || !!isMuted, [forceMuted, isMuted])
 
-  const emitPlayback = useCallback(
-    (playing: boolean) => {
-      setIsPlaying(playing)
-      onPlaybackChange?.(playing)
-    },
-    [onPlaybackChange],
-  )
+  // Store callback in ref to avoid re-registering events
+  const onPlaybackChangeRef = useRef(onPlaybackChange)
+  
+  useEffect(() => {
+    onPlaybackChangeRef.current = onPlaybackChange
+  }, [onPlaybackChange])
 
-  const emitMute = useCallback(
-    (muted: boolean) => {
-      onMuteChange?.(muted)
-      setIsMuted?.(muted)
-    },
-    [onMuteChange, setIsMuted],
-  )
+  const emitPlayback = useCallback((playing: boolean) => {
+    setIsPlaying(playing)
+    onPlaybackChangeRef.current?.(playing)
+  }, [])
+
+  // Store callback in ref to avoid re-registering events
+  const onMuteChangeRef = useRef(onMuteChange)
+  const setIsMutedRef = useRef(setIsMuted)
+  
+  useEffect(() => {
+    onMuteChangeRef.current = onMuteChange
+    setIsMutedRef.current = setIsMuted
+  }, [onMuteChange, setIsMuted])
+
+  const emitMute = useCallback((muted: boolean) => {
+    onMuteChangeRef.current?.(muted)
+    setIsMutedRef.current?.(muted)
+  }, [])
 
   const lastPlayEmitRef = useRef(0)
   const lastPauseEmitRef = useRef(0)
+  const durationRef = useRef(duration)
+  const currentTimeRef = useRef(currentTime)
 
   useEffect(() => {
     trackingRef.current = trackingConfig
@@ -119,6 +131,14 @@ export default function VideoPlayer({
   useEffect(() => {
     trackedCallbackRef.current = onTrackedEvent
   }, [onTrackedEvent])
+
+  useEffect(() => {
+    durationRef.current = duration
+  }, [duration])
+
+  useEffect(() => {
+    currentTimeRef.current = currentTime
+  }, [currentTime])
 
   const sendProgressEvent = useCallback(
     async (eventName: VideoProgressEventName, overrides?: { status?: TaskStatus; position?: number; duration?: number; progress?: number }) => {
@@ -183,6 +203,12 @@ export default function VideoPlayer({
     [currentTime, duration, src],
   )
 
+  const sendProgressEventRef = useRef(sendProgressEvent)
+
+  useEffect(() => {
+    sendProgressEventRef.current = sendProgressEvent
+  }, [sendProgressEvent])
+
   useEffect(() => {
     if (forceMuted) {
       emitMute(true)
@@ -214,38 +240,54 @@ export default function VideoPlayer({
     }
   }, [duration, initialPositionSeconds])
 
+  const applyInitialSeekRef = useRef(applyInitialSeek)
+
+  useEffect(() => {
+    applyInitialSeekRef.current = applyInitialSeek
+  }, [applyInitialSeek])
+
   useEffect(() => {
     applyInitialSeek()
   }, [applyInitialSeek])
 
+  // Attach video event listeners once; handlers read latest helpers via refs
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
 
     const handlePlay = () => {
+      console.log('[handlePlay] Play event fired - ensurePlaybackInProgress:', ensurePlaybackInProgressRef.current)
       emitPlayback(true)
       const eventName: VideoProgressEventName = hasStartedRef.current ? "resume_playback" : "video_started"
       hasStartedRef.current = true
       const now = Date.now()
       if (now - (lastPlayEmitRef.current || 0) > 5000) {
         lastPlayEmitRef.current = now
-        void sendProgressEvent(eventName, { status: "in_progress" })
+        void sendProgressEventRef.current?.(eventName, { status: "in_progress" })
       }
     }
 
     const handlePause = () => {
+      const sincePlay = Date.now() - (lastUserPlayTsRef.current || 0)
+      console.log('[handlePause] Pause event fired - ensurePlaybackInProgress:', ensurePlaybackInProgressRef.current, 'sincePlay:', sincePlay)
+
+      if (ensurePlaybackInProgressRef.current) {
+        console.log('[handlePause] IGNORED - ensurePlayback in progress')
+        return
+      }
+
       emitPlayback(false)
+
       if (video.ended) {
         return
       }
-      const sincePlay = Date.now() - (lastUserPlayTsRef.current || 0)
-      if (sincePlay < 800) {
-        return
-      }
-      const now = Date.now()
-      if (now - (lastPauseEmitRef.current || 0) > 1000) {
-        lastPauseEmitRef.current = now
-        void sendProgressEvent("video_paused", { status: "paused" })
+
+      if (sincePlay >= 1200) {
+        const now = Date.now()
+        if (now - (lastPauseEmitRef.current || 0) > 1000) {
+          lastPauseEmitRef.current = now
+          void sendProgressEventRef.current?.("video_paused", { status: "paused" })
+        }
       }
     }
 
@@ -257,7 +299,7 @@ export default function VideoPlayer({
       const nextDuration = Number.isFinite(video.duration) ? video.duration : 0
       setDuration(nextDuration)
       setHasError(false)
-      applyInitialSeek()
+      applyInitialSeekRef.current?.()
     }
 
     const handleCanPlay = () => setHasError(false)
@@ -265,10 +307,11 @@ export default function VideoPlayer({
     const handleEnded = () => {
       emitPlayback(false)
       hasStartedRef.current = false
-      const finalDuration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : duration
-      const finalPosition = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : currentTime
+      const videoEl = videoRef.current
+      const finalDuration = videoEl && Number.isFinite(videoEl.duration) ? videoEl.duration : durationRef.current
+      const finalPosition = videoEl && Number.isFinite(videoEl.duration) ? videoEl.duration : currentTimeRef.current
       setCurrentTime(finalPosition)
-      void sendProgressEvent("video_completed", {
+      void sendProgressEventRef.current?.("video_completed", {
         status: "completed",
         position: finalPosition,
         duration: finalDuration,
@@ -284,19 +327,6 @@ export default function VideoPlayer({
     video.addEventListener("error", handleError)
     video.addEventListener("ended", handleEnded)
 
-    video.muted = effectiveMuted
-    if (autoplay) {
-      // Rely on native 'play'/'pause' events to update state; avoid double state flips
-      video.play().catch(() => undefined)
-    }
-
-    if (startFullscreen) {
-      const container = containerRef.current
-      if (container?.requestFullscreen) {
-        container.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => setIsFullscreen(false))
-      }
-    }
-
     return () => {
       video.pause()
       video.removeEventListener("play", handlePlay)
@@ -307,40 +337,95 @@ export default function VideoPlayer({
       video.removeEventListener("error", handleError)
       video.removeEventListener("ended", handleEnded)
     }
-  }, [applyInitialSeek, autoplay, effectiveMuted, emitPlayback, sendProgressEvent, startFullscreen])
+  }, [emitPlayback])
+  
+  // Handle muted state updates
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    video.muted = effectiveMuted
+  }, [effectiveMuted])
+  
+  // Handle autoplay separately
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !autoplay || hasStartedRef.current) return
+    
+    // Ensure muted is set before autoplay
+    video.muted = effectiveMuted
+    video.play().catch(() => undefined)
+  }, [autoplay, effectiveMuted])
+  
+  useEffect(() => {
+    if (startFullscreen) {
+      const container = containerRef.current
+      if (container?.requestFullscreen) {
+        container.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => setIsFullscreen(false))
+      }
+    }
+  }, [startFullscreen])
 
   const togglingRef = useRef(false)
   const lastUserPlayTsRef = useRef(0)
+  const ensurePlaybackInProgressRef = useRef(false)
 
   const attemptPlay = useCallback(async () => {
     const video = videoRef.current
     if (!video) return false
+    
+    console.log('[attemptPlay] Starting - readyState:', video.readyState, 'paused:', video.paused, 'muted:', video.muted)
+    
     try {
       const playResult = video.play()
       if (playResult && typeof playResult.then === "function") {
         await playResult
       }
+      console.log('[attemptPlay] After play() - paused:', video.paused)
       return !video.paused
     } catch (error) {
-      console.warn("Video playback failed", error)
+      console.warn("[attemptPlay] Video playback failed", error)
       return false
     }
   }, [])
 
   const ensurePlayback = useCallback(async () => {
-    let attempts = 0
-    const maxAttempts = 6
-    while (attempts < maxAttempts) {
-      const playing = await attemptPlay()
-      if (playing) {
-        return true
+    const video = videoRef.current
+    if (!video) return false
+    
+    console.log('[ensurePlayback] START')
+    ensurePlaybackInProgressRef.current = true
+    
+    try {
+      let attempts = 0
+      const maxAttempts = 6
+      while (attempts < maxAttempts) {
+        console.log(`[ensurePlayback] Attempt ${attempts + 1}/${maxAttempts}`)
+        const playing = await attemptPlay()
+        if (playing) {
+          console.log('[ensurePlayback] Play succeeded, waiting 50ms for stability...')
+          // Wait a bit to ensure the play state is stable
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 50))
+          // Check if it's still playing (not immediately paused)
+          if (!video.paused) {
+            console.log('[ensurePlayback] SUCCESS - video is playing and stable')
+            return true
+          } else {
+            console.log('[ensurePlayback] Video paused during stability check')
+          }
+        }
+        attempts += 1
+        if (attempts < maxAttempts) {
+          await new Promise<void>((resolve) => {
+            window.setTimeout(resolve, 150)
+          })
+        }
       }
-      attempts += 1
-      await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, 150)
-      })
+      console.log('[ensurePlayback] FAILED - all attempts exhausted')
+      return false
+    } finally {
+      ensurePlaybackInProgressRef.current = false
+      console.log('[ensurePlayback] END - flag reset')
     }
-    return false
   }, [attemptPlay])
 
   const togglePlay = useCallback(async () => {
@@ -372,9 +457,16 @@ export default function VideoPlayer({
     }
   }, [emitPlayback, ensurePlayback])
 
+  // Register API only ONCE - avoid re-registering when callbacks change
+  const registerApiRef = useRef(registerApi)
+  
+  useEffect(() => {
+    registerApiRef.current = registerApi
+  }, [registerApi])
+  
   useEffect(() => {
     const video = videoRef.current
-    if (!video || !registerApi) return
+    if (!video || !registerApiRef.current) return
 
     const api: PlayerApi = {
       play: async () => {
@@ -398,8 +490,11 @@ export default function VideoPlayer({
       },
     }
 
-    registerApi(api)
-  }, [emitMute, emitPlayback, ensurePlayback, registerApi, togglePlay])
+    registerApiRef.current(api)
+    
+    // Only run once when video ref is available
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleSeek: React.ChangeEventHandler<HTMLInputElement> = (event) => {
     const video = videoRef.current

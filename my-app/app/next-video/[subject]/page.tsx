@@ -1,6 +1,6 @@
 ﻿"use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 
 import VideoPlayer from "@/components/video-player"
@@ -14,11 +14,16 @@ import {
 } from "@/lib/video-progress"
 
 const SUBJECT_TITLES: Record<string, string> = {
-  science: "Consulting",
+  consulting: "Consulting",
   commerce: "Commerce",
   math: "Math",
   arts: "Arts",
 }
+
+const CONSULTING_NEXT_SEQUENCE = [
+  "https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/task2%20partner%20first%20day.mp4",
+  "https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/2.2%20Monday10am.mp4",
+]
 
 type FullscreenCapableElement = HTMLDivElement & {
   webkitRequestFullscreen?: () => Promise<void>
@@ -41,6 +46,10 @@ export default function NextVideoPage() {
   const router = useRouter()
   const subject = (params.subject as string) ?? ""
   const videoId = `next-video-${subject}`
+  const sequence = useMemo(() => (subject === "consulting" ? CONSULTING_NEXT_SEQUENCE : null), [subject])
+  const [sequenceIndex, setSequenceIndex] = useState(0)
+
+  const progressVideoId = sequence ? `${videoId}-segment-${sequenceIndex + 1}` : videoId
 
   const [videoUrl, setVideoUrl] = useState(STUDY_STREAMS_VIDEO_FALLBACK_URL)
   const [loading, setLoading] = useState(true)
@@ -54,6 +63,16 @@ export default function NextVideoPage() {
   const [navigating, setNavigating] = useState<"A" | "B" | null>(null)
 
   useEffect(() => {
+    if (sequence) {
+      const targetUrl = sequence[sequenceIndex] ?? sequence[0]
+      setVideoUrl(targetUrl ?? STUDY_STREAMS_VIDEO_FALLBACK_URL)
+      setLoading(false)
+      setError(null)
+      setInitialPosition(null)
+      lastRecordRef.current = null
+      return
+    }
+
     let active = true
 
     const load = async () => {
@@ -83,14 +102,14 @@ export default function NextVideoPage() {
     return () => {
       active = false
     }
-  }, [])
+  }, [sequence, sequenceIndex])
 
   useEffect(() => {
     let cancelled = false
 
     const loadProgress = async () => {
       try {
-        const record = await fetchLatestProgressForVideo(videoId)
+        const record = await fetchLatestProgressForVideo(progressVideoId)
         if (cancelled) return
         if (record) {
           setInitialPosition(record.position_seconds ?? null)
@@ -106,21 +125,21 @@ export default function NextVideoPage() {
       }
     }
 
-    if (videoId) {
+    if (progressVideoId) {
       void loadProgress()
     }
 
     return () => {
       cancelled = true
     }
-  }, [videoId])
+  }, [progressVideoId])
 
   const handleOptionSelect = async (option: "A" | "B") => {
     if (navigating) return
     setNavigating(option)
     const latest = lastRecordRef.current
     void recordVideoProgressEvent({
-      videoId,
+      videoId: progressVideoId,
       videoUrl,
       progress: latest?.progress ?? 1,
       positionSeconds: latest?.position_seconds ?? 0,
@@ -143,9 +162,15 @@ export default function NextVideoPage() {
     const container = containerRef.current as FullscreenCapableElement | null
     if (!container) return
     requestFullscreenSafe(container).catch(() => undefined)
-    // Start delayed countdown bar similar to Study Streams overlay
+  }, [])
+
+  useEffect(() => {
     setTimerVisible(false)
     setTimerProgress(1)
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
     const timeoutId = window.setTimeout(() => {
       setTimerVisible(true)
       const startedAt = Date.now()
@@ -171,7 +196,13 @@ export default function NextVideoPage() {
         timerRef.current = null
       }
     }
-  }, [])
+  }, [sequenceIndex])
+
+  const handleNextSegment = () => {
+    if (!sequence) return
+    if (sequenceIndex >= sequence.length - 1) return
+    setSequenceIndex((prev) => prev + 1)
+  }
 
   if (loading) {
     return <div className="fixed inset-0 flex items-center justify-center bg-black text-white">Loading next video...</div>
@@ -179,7 +210,7 @@ export default function NextVideoPage() {
 
   return (
     <div ref={containerRef} className="fixed inset-0 z-[1000000] bg-black text-white">
-      <div className="absolute right-4 top-4 z-[1000001]">
+      <div className="absolute right-4 top-4 z-[1000001] flex gap-3">
         <Button
           className="rounded bg-black/80 px-4 py-2 text-white hover:bg-black/90 border border-white/20"
           onClick={() => {
@@ -189,6 +220,14 @@ export default function NextVideoPage() {
         >
           Close
         </Button>
+        {sequence && sequenceIndex < sequence.length - 1 && (
+          <Button
+            className="rounded bg-white/10 px-4 py-2 text-white hover:bg-white/20 border border-white/20"
+            onClick={handleNextSegment}
+          >
+            Next Play
+          </Button>
+        )}
       </div>
 
       <div className="relative flex h-full w-full items-center justify-center z-[1000001]">
@@ -196,6 +235,7 @@ export default function NextVideoPage() {
           <div className="absolute top-4 left-4 text-sm text-white/80">{error} – showing default stream video.</div>
         )}
         <VideoPlayer
+          key={progressVideoId}
           src={videoUrl}
           className="h-full w-full object-cover"
           showOptions={false}
@@ -203,9 +243,9 @@ export default function NextVideoPage() {
           autoplay
           startFullscreen={false}
           trackingConfig={{
-            videoId,
+            videoId: progressVideoId,
             videoUrl,
-            streamSelected: `${subject}:Next`,
+            streamSelected: `${subject}:Next${sequence ? `:Segment${sequenceIndex + 1}` : ""}`,
           }}
           initialPositionSeconds={initialPosition}
           onTrackedEvent={(record) => {

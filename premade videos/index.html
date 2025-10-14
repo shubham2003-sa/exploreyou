@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Review Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 0;
+            color: #333;
+            height: 100vh;
+            overflow-x: visible; /* allow chart labels to overflow if necessary */
+        }
+
+        .main-container {
+            width: 100vw;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #e0e7ff 0%, #f8fafc 100%);
+            padding: 0;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+        }
+
+        .header-section {
+            width: 100%;
+            background: linear-gradient(90deg, #6366f1 0%, #60a5fa 100%);
+            color: #fff;
+            padding: 20px 0 14px 0; /* reduced vertical padding */
+            text-align: center;
+            margin-bottom: 0;
+            box-shadow: 0 4px 16px 0 rgba(99,102,241,0.08);
+        }
+        .header-section h2 {
+            font-size: 1.6rem; /* smaller title */
+            font-weight: 700;
+            margin-bottom: 6px;
+            letter-spacing: 0.6px;
+            color: #fff;
+        }
+        .header-section p {
+            font-size: 0.98rem; /* compact paragraph */
+            color: #e0e7ff;
+            line-height: 1.4;
+            max-width: 760px;
+            margin: 0 auto;
+        }
+
+        .dashboard-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 0 0 0;
+        }
+
+        /* Profile section for MBTI and RIASEC (single visuals) */
+        .profile-section {
+            width: 100%;
+            max-width: 1000px;
+            margin: 24px auto;
+            padding: 16px 20px;
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            justify-content: space-between;
+        }
+        .profile-left, .profile-right {
+            background: #fff;
+            border-radius: 12px;
+            padding: 18px;
+            box-shadow: 0 8px 28px rgba(15,23,42,0.06);
+        }
+        .profile-left { flex: 1 1 60%; }
+        .profile-right { flex: 1 1 35%; }
+        .profile-title { font-size: 1.1rem; color:#111827; font-weight:700; margin-bottom:12px; }
+        .riasec-canvas { width: 100% !important; height: 260px !important; }
+        .mbti-type { font-size: 1.5rem; font-weight: 800; color: #111827; margin-bottom:6px; }
+        .mbti-desc { color:#4b5563; margin-bottom:12px; }
+        .mbti-bars { display:flex; flex-direction:column; gap:10px; }
+        .mbti-bar { display:flex; align-items:center; gap:8px; }
+        .mbti-bar .label { width:110px; color:#374151; }
+    .mbti-bar .bar { flex:1; display:flex; flex-direction:column; gap:6px; }
+    .bar-benchmark { height:8px; background:#fee2e2; border-radius:8px; }
+    .bar-user { height:12px; background:linear-gradient(90deg,#60a5fa,#6366f1); border-radius:8px; }
+    .bar-benchmark.hidden { display:none; }
+    .bench-pct { color: #f87171; width:40px; text-align:left; font-size:0.92rem; }
+    .bench-pct.hidden { display:none; }
+
+        .dashboard-section h3 {
+            font-size: 2rem;
+            color: #6366f1;
+            margin-bottom: 32px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .dashboard-content {
+            display: flex;
+            gap: 20px;
+            align-items: stretch;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .left-column {
+            flex: 1;
+            padding-right: 40px;
+            margin-left: 0; /* removed large negative offset so chart labels aren't pushed out */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .right-column {
+            flex: 1;
+            display: flex;
+            justify-content: flex-start; /* Shift content to the left */
+            align-items: flex-start;
+        }
+
+        .info-section {
+            margin-bottom: 28px;
+            background: #f1f5ff;
+            border-radius: 16px;
+            padding: 18px 20px 14px 20px;
+            box-shadow: 0 2px 8px 0 rgba(99,102,241,0.04);
+            transition: box-shadow 0.3s, background 0.3s;
+        }
+        .info-section:hover {
+            box-shadow: 0 4px 16px 0 rgba(99,102,241,0.10);
+            background: #e0e7ff;
+        }
+
+        .info-label {
+            font-weight: 700;
+            color: #6366f1;
+            margin-bottom: 8px;
+            font-size: 1.1rem;
+            letter-spacing: 0.2px;
+        }
+
+        .completion-time {
+            font-size: 1.05rem;
+            color: #22223b;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .time-comparison {
+            font-size: 0.98rem;
+            color: #4f4f6e;
+            line-height: 1.4;
+        }
+
+        .summary-item {
+            font-size: 1.05rem;
+            color: #2563eb;
+            margin-bottom: 8px;
+            font-weight: 500;
+            transition: color 0.2s, transform 0.2s;
+            cursor: pointer;
+        }
+        .summary-item:hover {
+            color: #1e40af;
+            transform: translateX(6px) scale(1.04);
+        }
+
+        .chart-container {
+            position: relative;
+            width: 720px; /* slightly larger so labels fit */
+            height: 440px;
+            margin-top: 0;
+            margin-left: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            border-radius: 24px;
+            box-shadow: 0 8px 32px 0 rgba(99,102,241,0.10), 0 1.5px 6px 0 rgba(0,0,0,0.04);
+            padding: 24px 60px 24px 100px; /* extra left padding to make room for left labels */
+            transition: box-shadow 0.3s;
+            overflow: visible;
+        }
+        .chart-container:hover {
+            box-shadow: 0 12px 40px 0 rgba(99,102,241,0.16), 0 2px 8px 0 rgba(0,0,0,0.06);
+        }
+
+        .benchmark-btn {
+            display: inline-block;
+            margin-top: 12px;
+            padding: 8px 14px;
+            background: #fff;
+            border: 1px solid #c7d2fe;
+            color: #3730a3;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(99,102,241,0.06);
+        }
+        .benchmark-btn:hover {
+            background: #f8fafc;
+        }
+
+        /* Prevent legend label strike-through visual (Chart.js may apply textDecoration) */
+        .chartjs-legend li span, .chartjs-legend li {
+            text-decoration: none !important;
+        }
+
+        #performanceChart {
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+        }
+
+        @media (max-width: 1024px) {
+            .dashboard-content {
+                flex-direction: column;
+                gap: 28px;
+                align-items: center;
+            }
+            .chart-container {
+                width: 420px;
+                height: 340px;
+                padding: 16px 8px;
+            }
+        }
+        @media (max-width: 600px) {
+            .main-container {
+                padding: 0;
+            }
+            .header-section {
+                padding: 32px 0 18px 0;
+            }
+            .dashboard-section {
+                padding: 18px 0 0 0;
+            }
+            .dashboard-section h3 {
+                font-size: 1.2rem;
+                margin-bottom: 18px;
+            }
+            .dashboard-content {
+                gap: 16px;
+            }
+            .left-column {
+                padding-right: 0;
+                text-align: center;
+            }
+            .chart-container {
+                width: 98vw;
+                min-width: 0;
+                max-width: 99vw;
+                height: 220px;
+                padding: 4px 0;
+            }
+        }
+
+        .confetti {
+            position: fixed;
+            top: -10px;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .confetti-piece {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #f0f;
+            animation: fall linear infinite;
+        }
+
+        @keyframes fall {
+            0% {
+                transform: translateY(-100vh) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(100vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="confetti" id="confetti"></div>
+    
+    <div class="main-container">
+        <div class="header-section">
+            <h2>A Noble Effort</h2>
+            <p>Nice work — you completed the simulation. This snapshot highlights your strengths and where you can grow.</p>
+        </div>
+
+        <div class="dashboard-section">
+            <h3>Your Performance Dashboard</h3>
+            <div class="dashboard-content">
+                <div class="left-column">
+                    <div class="info-section">
+                        <div class="info-label">Completion Time:</div>
+                        <div class="completion-time">You completed the simulation in 28 min 22 seconds.</div>
+                        <div class="time-comparison">You're faster than 35 people who took it and slower than 10 people who took it.</div>
+                    </div>
+
+                    <div class="info-section">
+                        <div class="info-label">Summary:</div>
+                        <div class="summary-item">Your Strength: Customer and Brand Perception</div>
+                        <div class="summary-item">Area for Development: Data Analysis</div>
+                    </div>
+                </div>
+
+                <div class="right-column">
+                    <div class="chart-container">
+                        <canvas id="performanceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Confetti Animation
+        function createConfetti() {
+            const confettiContainer = document.getElementById('confetti');
+            const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3', '#54a0ff', '#5f27cd'];
+            
+            for (let i = 0; i < 100; i++) {
+                const confettiPiece = document.createElement('div');
+                confettiPiece.className = 'confetti-piece';
+                confettiPiece.style.left = Math.random() * 100 + '%';
+                confettiPiece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confettiPiece.style.animationDuration = (Math.random() * 3 + 2) + 's';
+                confettiPiece.style.animationDelay = Math.random() * 2 + 's';
+                confettiContainer.appendChild(confettiPiece);
+            }
+            
+            // Remove confetti after 8 seconds
+            setTimeout(() => {
+                confettiContainer.innerHTML = '';
+            }, 8000);
+        }
+
+        // Start confetti when page loads
+        window.addEventListener('load', createConfetti);
+
+        // Chart configuration
+        const ctx = document.getElementById('performanceChart').getContext('2d');
+        const performanceChart = new Chart(ctx, {
+            type: 'radar',
+                        data: {
+                labels: ['Problem Structuring', 'Data Analysis', 'Customer and Brand Perception', 'Execution & Delivery'],
+                datasets: [{
+                    label: 'Your Skills',
+                    data: [8, 3, 9, 6],
+                    backgroundColor: 'rgba(255, 205, 86, 0.25)',
+                    borderColor: 'rgb(245, 158, 11)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgb(245, 158, 11)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgb(245, 158, 11)'
+                }, {
+                    label: 'Profession Benchmark',
+                    data: [9, 8, 7, 9], /* consulting benchmark values (approx): Problem Structuring, Data Analysis, Customer & Brand Perception, Execution & Delivery */
+                    backgroundColor: 'rgba(255,159,64,0.06)',
+                    borderColor: 'rgba(255,99,71,0.95)',
+                    borderDash: [6,6],
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(255,99,71,0.9)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(255,99,71,0.9)'
+                }]
+            },
+            options: {
+                    responsive: true,
+                    maintainAspectRatio: false, // allow flexible canvas sizing
+                    layout: {
+                        padding: {
+                            top: 20,
+                            bottom: 20,
+                            left: 20,
+                            right: 20
+                        }
+                    },
+                animation: {
+                    duration: 2000,
+                    easing: 'easeInOutBounce',
+                    animateScale: true,
+                    animateRotate: true
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            generateLabels: function(chart) {
+                                // return only labels for datasets that are currently visible
+                                const datasets = chart.data.datasets;
+                                return datasets.map(function(dataset, i) {
+                                    return {
+                                        text: dataset.label,
+                                        fillStyle: dataset.backgroundColor,
+                                        strokeStyle: dataset.borderColor,
+                                        lineWidth: dataset.borderWidth,
+                                        hidden: !chart.isDatasetVisible(i),
+                                        datasetIndex: i
+                                    };
+                                }).filter(function(label) { return !label.hidden; });
+                            }
+                        },
+                        onClick: function(e, legendItem, legend) {
+                            const index = legendItem.datasetIndex;
+                            const ci = legend.chart;
+                            const meta = ci.getDatasetMeta(index);
+                            // toggle hidden state then update chart
+                            meta.hidden = meta.hidden === null ? !ci.data.datasets[index].hidden : null;
+                            ci.update();
+                        }
+                    }
+                },
+                scales: {
+                    r: {
+                        beginAtZero: true,
+                        min: 0,
+                        max: 10,
+                        ticks: {
+                            stepSize: 2,
+                            font: {
+                                size: 12
+                            }
+                        },
+                        pointLabels: {
+                            font: {
+                                size: 12
+                            },
+                            padding: 28 // tuned padding for fit
+                        },
+                        startAngle: 30, // Rotate chart for better label spacing
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        },
+                        angleLines: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Initially hide the benchmark dataset
+        performanceChart.data.datasets[1].hidden = true;
+        performanceChart.update();
+
+        // Add compact Profile Section (one RIASEC chart + one MBTI panel)
+        const profileSection = document.createElement('div');
+        profileSection.className = 'profile-section';
+
+        // Left: RIASEC chart
+        const left = document.createElement('div');
+        left.className = 'profile-left';
+        const leftTitle = document.createElement('div');
+        leftTitle.className = 'profile-title';
+        leftTitle.textContent = 'RIASEC - Interest Profile';
+        left.appendChild(leftTitle);
+        const riasecCanvas = document.createElement('canvas');
+        riasecCanvas.id = 'riasecChart';
+        riasecCanvas.className = 'riasec-canvas';
+        left.appendChild(riasecCanvas);
+
+        // Right: MBTI panel (type + description + 4 sliders)
+        const right = document.createElement('div');
+        right.className = 'profile-right';
+        const rightTitle = document.createElement('div');
+        rightTitle.className = 'profile-title';
+        rightTitle.textContent = 'MBTI - Personality Snapshot';
+        right.appendChild(rightTitle);
+
+        const mbtiType = document.createElement('div');
+        mbtiType.className = 'mbti-type';
+        // Example type; replace with real value as needed
+        mbtiType.textContent = 'ENFP';
+        right.appendChild(mbtiType);
+
+        const mbtiDesc = document.createElement('div');
+        mbtiDesc.className = 'mbti-desc';
+        mbtiDesc.textContent = 'Enthusiastic, creative, and sociable — enjoys exploring possibilities and connecting with others.';
+        right.appendChild(mbtiDesc);
+
+        const bars = document.createElement('div');
+        bars.className = 'mbti-bars';
+        const dims = [ ['Extraversion','E',70], ['Intuition','N',65], ['Feeling','F',60], ['Perceiving','P',55] ];
+    // Consulting MBTI benchmark percentages (approximate): E, N, T, J
+    const mbtiBench = [70, 65, 70, 68];
+        dims.forEach((d, idx) => {
+            const row = document.createElement('div');
+            row.className = 'mbti-bar';
+            const label = document.createElement('div');
+            label.className = 'label';
+            label.textContent = d[0] + ' (' + d[1] + ')';
+            const barWrap = document.createElement('div');
+            barWrap.className = 'bar';
+            // benchmark bar (hidden by default)
+            const fillBench = document.createElement('div');
+            fillBench.className = 'bar-benchmark';
+            fillBench.style.width = mbtiBench[idx] + '%';
+            // user value bar
+            const fillUser = document.createElement('div');
+            fillUser.className = 'bar-user';
+            fillUser.style.width = d[2] + '%';
+            barWrap.appendChild(fillBench);
+            barWrap.appendChild(fillUser);
+            const pct = document.createElement('div');
+            pct.style.width = '40px';
+            pct.style.textAlign = 'right';
+            pct.style.color = '#374151';
+            pct.textContent = d[2] + '%';
+            // benchmark percentage label (hidden by default)
+            const benchPct = document.createElement('div');
+            benchPct.className = 'bench-pct hidden';
+            benchPct.textContent = mbtiBench[idx] + '%';
+            row.appendChild(label);
+            row.appendChild(barWrap);
+            row.appendChild(pct);
+            row.appendChild(benchPct);
+            bars.appendChild(row);
+        });
+        right.appendChild(bars);
+
+        profileSection.appendChild(left);
+        profileSection.appendChild(right);
+
+        // Append profile section after main container
+        document.querySelector('.main-container').appendChild(profileSection);
+
+        // Render RIASEC bar chart
+        const riasecLabels = ['Realistic','Investigative','Artistic','Social','Enterprising','Conventional'];
+        // Example values; replace with actual RIASEC scores
+        const riasecValues = [6,8,5,7,4,6];
+        const rcx = document.getElementById('riasecChart').getContext('2d');
+        const riasecChart = new Chart(rcx, {
+            type: 'bar',
+            data: {
+                labels: riasecLabels,
+                datasets: [{
+                    label: 'RIASEC score',
+                    data: riasecValues,
+                    backgroundColor: ['#60a5fa','#4ecdc4','#fbbf24','#f472b6','#a78bfa','#34d399']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, max: 10 } }
+            }
+        });
+
+        // Add RIASEC benchmark dataset (hidden by default)
+        riasecChart.data.datasets.push({
+            label: 'RIASEC Benchmark',
+            data: [7,8,6,6,6,5],
+            backgroundColor: 'rgba(255,99,71,0.25)'
+        });
+        riasecChart.data.datasets[1].hidden = true;
+        riasecChart.update();
+
+    // Update MBTI bars to include benchmark bars and percent labels - ensure they are hidden by default
+    document.querySelectorAll('.bar-benchmark').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.bench-pct').forEach(el => el.classList.add('hidden'));
+
+        // Create a page-level benchmark toggle and place it at the end of the page
+        const pageBtnWrap = document.createElement('div');
+        pageBtnWrap.style.textAlign = 'center';
+        pageBtnWrap.style.margin = '18px 0 40px 0';
+        const pageBtn = document.createElement('button');
+        pageBtn.id = 'benchmarkToggle';
+        pageBtn.className = 'benchmark-btn';
+        pageBtn.textContent = 'Show benchmarks';
+        pageBtnWrap.appendChild(pageBtn);
+        document.querySelector('.main-container').appendChild(pageBtnWrap);
+
+        // Wire toggle to performance chart, riasecChart and MBTI bars
+        pageBtn.addEventListener('click', () => {
+            // toggle main chart benchmark
+            const ds = performanceChart.data.datasets[1];
+            ds.hidden = !ds.hidden;
+            performanceChart.update();
+            // toggle riasec benchmark
+            riasecChart.data.datasets[1].hidden = !riasecChart.data.datasets[1].hidden;
+            riasecChart.update();
+            // toggle MBTI benchmark bars and percent labels
+            document.querySelectorAll('.bar-benchmark').forEach(el => el.classList.toggle('hidden'));
+            document.querySelectorAll('.bench-pct').forEach(el => el.classList.toggle('hidden'));
+            pageBtn.textContent = ds.hidden ? 'Show benchmarks' : 'Hide benchmarks';
+        });
+    </script>
+</body>
+</html> 
