@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 
+export const runtime = "nodejs"
+
 const BUCKET = process.env.NEXT_PUBLIC_SUPABASE_VIDEO_BUCKET || "videos"
 
 export async function GET(request: NextRequest) {

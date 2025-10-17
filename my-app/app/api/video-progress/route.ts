@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 
+export const runtime = "nodejs"
+
 const TABLE_NAME = process.env.NEXT_PUBLIC_SUPABASE_PROGRESS_TABLE || "video_progress"
 
 function getClient(request: NextRequest) {
@@ -113,5 +115,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ detail: message }, { status: 500 })
   }
 }
-
 
