@@ -47,7 +47,6 @@ export default function SessionTracker() {
   const pathname = usePathname()
   const psidRef = useRef<string | null>(null)
   const startRef = useRef<number | null>(null)
-  const flushTimerRef = useRef<number | null>(null)
   const queueRef = useRef<QueuedEvent[]>([])
   const prevPathRef = useRef<string | null>(null)
 

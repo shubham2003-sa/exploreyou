@@ -13,13 +13,6 @@ import {
   type VideoProgressRecord,
 } from "@/lib/video-progress"
 
-const SUBJECT_TITLES: Record<string, string> = {
-  consulting: "Consulting",
-  commerce: "Commerce",
-  math: "Math",
-  arts: "Arts",
-}
-
 const CONSULTING_NEXT_SEQUENCE = [
   "https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/task2%20partner%20first%20day.mp4",
   "https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/2.2%20Monday10am.mp4",

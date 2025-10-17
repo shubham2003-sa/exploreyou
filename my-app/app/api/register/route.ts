@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ detail: "Supabase not configured" }, { status: 500 })
   }
 
-  let response = NextResponse.json({ ok: true })
+  let response: NextResponse = NextResponse.json({ ok: true })
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -18,7 +18,6 @@ export async function POST(request: NextRequest) {
         return request.cookies.getAll()
       },
       setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value, options))
         response = NextResponse.json({ ok: true })
         cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
       },

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
+import type { ResponseCookie } from "next/dist/compiled/@edge-runtime/cookies"
 
 export const runtime = "nodejs"
 
@@ -10,7 +11,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ detail: "Supabase not configured" }, { status: 500 })
   }
 
-  const cookieUpdates: Array<{ name: string; value: string; options?: Parameters<typeof NextResponse.prototype.cookies.set>[2] }> = []
+  const cookieUpdates: Array<{ name: string; value: string; options?: Partial<ResponseCookie> }> = []
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -48,13 +49,13 @@ export async function POST(request: NextRequest) {
 
     const res = NextResponse.json({ email: user?.email ?? email, name: user?.user_metadata?.name ?? null })
     cookieUpdates.forEach(({ name, value, options }) => {
-      const opts: any = { ...(options || {}) }
-      if (process.env.NODE_ENV !== 'production') {
-        opts.secure = false
-        opts.sameSite = 'lax'
+      const baseOptions: Partial<ResponseCookie> = { ...(options || {}) }
+      if (process.env.NODE_ENV !== "production") {
+        baseOptions.secure = false
+        baseOptions.sameSite = "lax"
       }
-      if (!opts.path) opts.path = '/'
-      res.cookies.set(name, value, opts)
+      if (!baseOptions.path) baseOptions.path = "/"
+      res.cookies.set({ name, value, ...baseOptions })
     })
     return res
   } catch (err) {
@@ -62,5 +63,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ detail: message }, { status: 400 })
   }
 }
-
 

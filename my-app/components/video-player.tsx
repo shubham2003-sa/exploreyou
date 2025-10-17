@@ -32,6 +32,7 @@ interface VideoPlayerProps {
   showOptions?: boolean
   onOptionClick?: (option: string) => void
   autoplay?: boolean
+  loop?: boolean
   startFullscreen?: boolean
   controlsType?: "default" | "mute-only"
   showNativeControls?: boolean
@@ -63,6 +64,7 @@ export default function VideoPlayer({
   showOptions = false,
   onOptionClick,
   autoplay = false,
+  loop = false,
   startFullscreen = false,
   controlsType = "default",
   showNativeControls = false,
@@ -544,6 +546,7 @@ export default function VideoPlayer({
         muted={effectiveMuted}
         autoPlay={autoplay}
         playsInline
+        loop={loop}
         controls={showNativeControls}
       />
 

@@ -15,7 +15,6 @@ function getClient(request: NextRequest) {
         return request.cookies.getAll()
       },
       setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value, options))
         response = NextResponse.next({ request })
         cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
       },
@@ -115,4 +114,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ detail: message }, { status: 500 })
   }
 }
-
