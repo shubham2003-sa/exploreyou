@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ detail: "email and password are required" }, { status: 400 })
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       const message = (error.message || "").toLowerCase()
       const notConfirmed = message.includes("confirm") || message.includes("confirmed")
@@ -42,10 +42,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ detail: error.message }, { status: 401 })
     }
 
-    // Return minimal profile info
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const user = data?.user
 
     const res = NextResponse.json({ email: user?.email ?? email, name: user?.user_metadata?.name ?? null })
     cookieUpdates.forEach(({ name, value, options }) => {
@@ -63,4 +60,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ detail: message }, { status: 400 })
   }
 }
-
