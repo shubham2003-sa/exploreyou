@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { generateAIVideo } from "@/lib/video-generator"
 
+export const runtime = "nodejs"
+
 export async function POST(request: NextRequest) {
   try {
     const { subject, duration, style, theme } = await request.json()
