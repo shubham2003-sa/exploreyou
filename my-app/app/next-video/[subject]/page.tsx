@@ -13,10 +13,7 @@ import {
   type VideoProgressRecord,
 } from "@/lib/video-progress"
 
-const CONSULTING_NEXT_SEQUENCE = [
-  "https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/task2%20partner%20first%20day.mp4",
-  "https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/2.2%20Monday10am.mp4",
-]
+const CONSULTING_NEXT_SEQUENCE = ["videos/task2 partner first day.mp4", "videos/2.2 Monday10am.mp4"]
 
 type FullscreenCapableElement = HTMLDivElement & {
   webkitRequestFullscreen?: () => Promise<void>
@@ -56,14 +53,37 @@ export default function NextVideoPage() {
   const [navigating, setNavigating] = useState<"A" | "B" | null>(null)
 
   useEffect(() => {
+    setLoading(true)
+
     if (sequence) {
-      const targetUrl = sequence[sequenceIndex] ?? sequence[0]
-      setVideoUrl(targetUrl ?? STUDY_STREAMS_VIDEO_FALLBACK_URL)
-      setLoading(false)
-      setError(null)
-      setInitialPosition(null)
-      lastRecordRef.current = null
-      return
+      let cancelled = false
+      const loadSequence = async () => {
+        try {
+          const target = sequence[sequenceIndex] ?? sequence[0]
+          const resolved = target
+            ? await resolveVideoUrl(target, STUDY_STREAMS_VIDEO_FALLBACK_URL)
+            : STUDY_STREAMS_VIDEO_FALLBACK_URL
+          if (!cancelled) {
+            setVideoUrl(resolved ?? STUDY_STREAMS_VIDEO_FALLBACK_URL)
+            setError(null)
+            setInitialPosition(null)
+            lastRecordRef.current = null
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setVideoUrl(STUDY_STREAMS_VIDEO_FALLBACK_URL)
+            setError(err instanceof Error ? err.message : "Failed to load video segment")
+          }
+        } finally {
+          if (!cancelled) {
+            setLoading(false)
+          }
+        }
+      }
+      void loadSequence()
+      return () => {
+        cancelled = true
+      }
     }
 
     let active = true
