@@ -29,8 +29,15 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## Deploy on Netlify
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Commit your changes and push the repository to GitHub, GitLab, or Bitbucket.
+2. In Netlify, select **Add new site → Import an existing project** and point it at this repo.
+3. When prompted for the build settings, Netlify detects `netlify.toml`. Confirm the base directory is `my-app`, the build command is `npm run build`, and the publish directory is `.next`.
+4. Configure the required environment variables in **Site Settings → Environment variables**:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_BACKEND_URL` (or `BACKEND_URL`) pointing to your deployed Python backend.
+5. Trigger a deploy in Netlify. Each push to the tracked branch will redeploy automatically.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+> Tip: When running locally, the rewrite falls back to `http://localhost:8000`. Override it by exporting `BACKEND_URL` if your backend runs elsewhere.
