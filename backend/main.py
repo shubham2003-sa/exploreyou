@@ -632,3 +632,18 @@ async def record_score_event(request: Request, payload: ScoreEventRequest):
     total_possible = float(current.get("total_possible") or 0.0) + possible if current else possible
     record = await sb_repo.upsert_user_score(user_id, email, total_points, total_possible)
     return _score_response(record)
+
+
+def get_app() -> FastAPI:
+    """Expose the FastAPI application when imported by ASGI servers."""
+    return app
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "8000"))
+    reload_flag = os.getenv("UVICORN_RELOAD", "").lower() in {"1", "true", "yes"}
+
+    uvicorn.run("main:app", host=host, port=port, reload=reload_flag)
