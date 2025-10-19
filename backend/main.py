@@ -634,14 +634,24 @@ async def record_score_event(request: Request, payload: ScoreEventRequest):
     return _score_response(record)
 
 
-@app.get("/health")
-async def health_check():
-    """Simple health probe for deployment platforms."""
+def _health_payload() -> dict[str, object]:
     return {
         "status": "ok",
         "timestamp": datetime.utcnow().isoformat(),
         "supabase": supabase_enabled(),
     }
+
+
+@app.get("/health")
+async def health_check():
+    """Simple health probe for deployment platforms."""
+    return _health_payload()
+
+
+@app.get("/api/health")
+async def api_health_check():
+    """Simple health probe for deployment platforms."""
+    return _health_payload()
 
 
 def get_app() -> FastAPI:
