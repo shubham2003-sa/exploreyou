@@ -14,6 +14,7 @@ Reference this document before modifying the codebase so changes stay aligned wi
 - `supabase_repo.py` – Repository layer that marshals datetime fields and talks to Supabase tables for users, sessions, dwell metrics, video progress, and scores. Pass naive/UTC datetimes; helpers serialize/parse for you.
 - `data/*.json` – Seed data for users, videos, and text content.
 - `requirements.txt` – Minimal dependency list (`fastapi`, `uvicorn`, `supabase`, etc.).
+- `main.py` also exposes `/health` (simple status probe) and a `get_app()` helper; FastAPI runs under uvicorn with host/port read from `HOST`/`PORT`.
 - Utility scripts: `check_tables.py`, `migrate_users.py`, `session_test.py`, `smoke_test.py`, `tmp_connect*.py`, `tmp_print_env.py` – Troubleshooting, migration, and connectivity helpers. Keep `.env` accurate for these scripts.
 - Logs (`event_error.log`, `server_err.log`) are diagnostic artifacts; only rotate when necessary.
 

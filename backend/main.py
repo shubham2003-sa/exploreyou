@@ -634,6 +634,16 @@ async def record_score_event(request: Request, payload: ScoreEventRequest):
     return _score_response(record)
 
 
+@app.get("/health")
+async def health_check():
+    """Simple health probe for deployment platforms."""
+    return {
+        "status": "ok",
+        "timestamp": datetime.utcnow().isoformat(),
+        "supabase": supabase_enabled(),
+    }
+
+
 def get_app() -> FastAPI:
     """Expose the FastAPI application when imported by ASGI servers."""
     return app
