@@ -40,7 +40,7 @@ Reference this document before modifying the codebase so changes stay aligned wi
   - The overlay timer is scheduled only after `handleOverlayPlaybackChange` confirms playback; keep the countdown anchored by the centered progress bar.
   - Consulting flow stores both option key and descriptive label; continue passing the label in the `label` query parameter for `/task-simulation`.
 - `video-player/[subject]/page.tsx` – Subject-specific player page loading progress, writing events, and driving fullscreen controls.
-- `next-video/[subject]/page.tsx` – Follow-up video flow. Consulting segments now reference bucket-relative paths and are resolved through `resolveVideoUrl` so signed URLs are used consistently.
+- `next-video/[subject]/page.tsx` – Follow-up video flow. Consulting segments keep interactive buttons; non-interactive subjects auto-advance to `/task-simulation/{subject}` after `video_completed` fires.
 - API routes:
   - `/api/login`, `/api/logout`, `/api/register`, `/api/me`, `/api/video-progress`, `/api/videos`, `/api/health`, `/api/auth/resend-confirmation`, `/api/generate-video` – All run with `runtime = "nodejs"` to access Supabase libraries.
   - `/api/videos` lists Supabase storage objects and returns signed URLs (TTL defaults to `NEXT_PUBLIC_SUPABASE_SIGNED_URL_TTL`). Falls back to public paths if signing fails.

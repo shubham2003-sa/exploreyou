@@ -1,6 +1,6 @@
-﻿"use client"
+"use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 
 import VideoPlayer from "@/components/video-player"
@@ -37,6 +37,7 @@ export default function NextVideoPage() {
   const subject = (params.subject as string) ?? ""
   const videoId = `next-video-${subject}`
   const sequence = useMemo(() => (subject === "consulting" ? CONSULTING_NEXT_SEQUENCE : null), [subject])
+  const hasInteractiveOptions = Boolean(sequence)
   const [sequenceIndex, setSequenceIndex] = useState(0)
 
   const progressVideoId = sequence ? `${videoId}-segment-${sequenceIndex + 1}` : videoId
@@ -51,6 +52,7 @@ export default function NextVideoPage() {
   const [timerProgress, setTimerProgress] = useState(1)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [navigating, setNavigating] = useState<"A" | "B" | null>(null)
+  const autoAdvanceTriggeredRef = useRef(false)
 
   useEffect(() => {
     setLoading(true)
@@ -217,6 +219,18 @@ export default function NextVideoPage() {
     setSequenceIndex((prev) => prev + 1)
   }
 
+  const handleAutoAdvance = useCallback(async () => {
+    if (hasInteractiveOptions || autoAdvanceTriggeredRef.current) return
+    autoAdvanceTriggeredRef.current = true
+    try {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        await document.exitFullscreen().catch(() => undefined)
+      }
+    } finally {
+      router.push(`/task-simulation/${subject}`)
+    }
+  }, [hasInteractiveOptions, router, subject])
+
   if (loading) {
     return <div className="fixed inset-0 flex items-center justify-center bg-black text-white">Loading next video...</div>
   }
@@ -245,7 +259,7 @@ export default function NextVideoPage() {
 
       <div className="relative flex h-full w-full items-center justify-center z-[1000001]">
         {error && (
-          <div className="absolute top-4 left-4 text-sm text-white/80">{error} – showing default stream video.</div>
+          <div className="absolute top-4 left-4 text-sm text-white/80">{error} â€“ showing default stream video.</div>
         )}
         <VideoPlayer
           key={progressVideoId}
@@ -261,15 +275,18 @@ export default function NextVideoPage() {
             streamSelected: `${subject}:Next${sequence ? `:Segment${sequenceIndex + 1}` : ""}`,
           }}
           initialPositionSeconds={initialPosition}
-          onTrackedEvent={(record) => {
+          onTrackedEvent={(record, eventName) => {
             if (record) {
               lastRecordRef.current = record
+            }
+            if (!hasInteractiveOptions && eventName === "video_completed") {
+              void handleAutoAdvance()
             }
           }}
         />
       </div>
 
-      {timerVisible && (
+      {hasInteractiveOptions && timerVisible && (
         <div className="absolute left-0 right-0 flex w-full justify-center z-[1000002]" style={{ bottom: "9.5rem" }}>
           <div
             style={{
@@ -283,27 +300,29 @@ export default function NextVideoPage() {
         </div>
       )}
 
-      <div className="pointer-events-auto fixed left-0 right-0 bottom-0 z-[1000003]" style={{ height: "9.5rem" }}>
-        <div className="flex h-full w-full items-start bg-black/95">
-          <button
-            aria-label="Option A"
-            className="flex-1 h-full pt-6 text-xl font-normal tracking-normal text-white hover:bg-black/95 md:text-2xl"
-            style={{ background: "transparent", border: "none" }}
-            onClick={() => handleOptionSelect("A")}
-          >
-            <span className="mt-0">{navigating === "A" ? "Loading…" : "Option A"}</span>
-          </button>
-          <div className="w-px bg-white/20" />
-          <button
-            aria-label="Option B"
-            className="flex-1 h-full pt-6 text-xl font-normal tracking-normal text-white hover:bg-black/95 md:text-2xl"
-            style={{ background: "transparent", border: "none" }}
-            onClick={() => handleOptionSelect("B")}
-          >
-            <span className="mt-0">{navigating === "B" ? "Loading…" : "Option B"}</span>
-          </button>
+      {hasInteractiveOptions && (
+        <div className="pointer-events-auto fixed left-0 right-0 bottom-0 z-[1000003]" style={{ height: "9.5rem" }}> 
+          <div className="flex h-full w-full items-start bg-black/95">
+            <button
+              aria-label="Option A"
+              className="flex-1 h-full pt-6 text-xl font-normal tracking-normal text-white hover:bg-black/95 md:text-2xl"
+              style={{ background: "transparent", border: "none" }}
+              onClick={() => handleOptionSelect("A")}
+            >
+              <span className="mt-0">{navigating === "A" ? "Loading…" : "Option A"}</span>
+            </button>
+            <div className="w-px bg-white/20" />
+            <button
+              aria-label="Option B"
+              className="flex-1 h-full pt-6 text-xl font-normal tracking-normal text-white hover:bg-black/95 md:text-2xl"
+              style={{ background: "transparent", border: "none" }}
+              onClick={() => handleOptionSelect("B")}
+            >
+              <span className="mt-0">{navigating === "B" ? "Loading…" : "Option B"}</span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

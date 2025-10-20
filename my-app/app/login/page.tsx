@@ -45,19 +45,22 @@ export default function LoginPage() {
         return
       }
 
+      let resolvedEmail = email
+      let resolvedName: string | null = null
       try {
         const profileResponse = await fetch("/api/me", { credentials: "include" })
         if (profileResponse.ok) {
-          const data = (await profileResponse.json()) as { email?: string; name?: string } | null
-          if (data?.email) {
-            saveAuthProfile({ email: data.email, name: data.name ?? null })
-          }
+          const data = (await profileResponse.json()) as { email?: string | null; name?: string | null } | null
+          if (data?.email) resolvedEmail = data.email
+          if (data?.name) resolvedName = data.name ?? null
         }
       } catch {
-        saveAuthProfile({ email })
+        // ignore – fall back to entered email
       }
 
+      saveAuthProfile({ email: resolvedEmail, name: resolvedName })
       router.push("/study-streams")
+      return
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Network error")
     } finally {
