@@ -265,7 +265,7 @@ export default function NextVideoPage() {
 
       <div className="relative flex h-full w-full items-center justify-center z-[1000001]">
         {error && (
-          <div className="absolute top-4 left-4 text-sm text-white/80">{error} â€“ showing default stream video.</div>
+          <div className="absolute top-4 left-4 text-sm text-white/80">{error} - showing default stream video.</div>
         )}
         <VideoPlayer
           key={progressVideoId}
@@ -275,6 +275,8 @@ export default function NextVideoPage() {
           hideControls
           autoplay
           startFullscreen={false}
+          isMuted={muted}
+          setIsMuted={setMuted}
           trackingConfig={{
             videoId: progressVideoId,
             videoUrl,
@@ -289,8 +291,6 @@ export default function NextVideoPage() {
               void handleAutoAdvance()
             }
           }}
-          isMuted={muted}
-          setIsMuted={setMuted}
         />
       </div>
 
@@ -309,7 +309,7 @@ export default function NextVideoPage() {
       )}
 
       {hasInteractiveOptions && (
-        <div className="pointer-events-auto fixed left-0 right-0 bottom-0 z-[1000003]" style={{ height: "9.5rem" }}> 
+        <div className="pointer-events-auto fixed left-0 right-0 bottom-0 z-[1000003]" style={{ height: "9.5rem" }}>
           <div className="flex h-full w-full items-start bg-black/95">
             <button
               aria-label="Option A"
@@ -317,7 +317,7 @@ export default function NextVideoPage() {
               style={{ background: "transparent", border: "none" }}
               onClick={() => handleOptionSelect("A")}
             >
-              <span className="mt-0">{navigating === "A" ? "Loading…" : "Option A"}</span>
+              <span className="mt-0">{navigating === "A" ? "Loading..." : "Option A"}</span>
             </button>
             <div className="w-px bg-white/20" />
             <button
@@ -326,7 +326,7 @@ export default function NextVideoPage() {
               style={{ background: "transparent", border: "none" }}
               onClick={() => handleOptionSelect("B")}
             >
-              <span className="mt-0">{navigating === "B" ? "Loading…" : "Option B"}</span>
+              <span className="mt-0">{navigating === "B" ? "Loading..." : "Option B"}</span>
             </button>
           </div>
         </div>
