@@ -52,7 +52,13 @@ export default function NextVideoPage() {
   const [timerProgress, setTimerProgress] = useState(1)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [navigating, setNavigating] = useState<"A" | "B" | null>(null)
+  const [muted, setMuted] = useState(() => !hasInteractiveOptions)
   const autoAdvanceTriggeredRef = useRef(false)
+
+  useEffect(() => {
+    setMuted(!hasInteractiveOptions)
+    autoAdvanceTriggeredRef.current = false
+  }, [hasInteractiveOptions])
 
   useEffect(() => {
     setLoading(true)
@@ -283,6 +289,8 @@ export default function NextVideoPage() {
               void handleAutoAdvance()
             }
           }}
+          isMuted={muted}
+          setIsMuted={setMuted}
         />
       </div>
 
