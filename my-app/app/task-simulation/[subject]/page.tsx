@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useParams, useSearchParams, useRouter } from "next/navigation"
-import { loadAuthProfile } from "@/lib/auth-storage"
 import { useEffect, useState } from "react"
 import Header from "@/components/header"
 import { useScore } from "@/components/score-provider"
@@ -85,25 +84,7 @@ export default function TaskSimulationPage() {
         4,
     )
     void recordScore({ pointsEarned: average, pointsPossible: 100, source: `analysis:${subject}:${optionKey ?? "default"}` })
-    const profile = loadAuthProfile()
-    const email = profile?.email
-    if (!email) {
-      console.warn("No user email found; skipping score persistence.")
-      return
-    }
-
-    try {
-      await fetch(
-        `http://127.0.0.1:8000/users/${encodeURIComponent(email)}/stream-scores/${encodeURIComponent(subject || "default")}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ score: average }),
-        },
-      )
-    } catch (err) {
-      console.warn("Failed to persist stream score:", err)
-    }
+    // Scores are persisted via Supabase by `recordScore`.
   }
 
   const handleBeginAnalysis = () => {
