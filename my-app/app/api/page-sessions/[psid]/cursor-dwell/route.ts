@@ -159,9 +159,12 @@ export async function POST(request: NextRequest, { params }: { params: { psid: s
       return response
     }
 
+    const { data: authData } = await supabase.auth.getUser()
+    const authUser = authData?.user ?? null
+
     const { data: session, error: sessionError } = await supabase
       .from("page_sessions")
-      .select("event_count, last_event_at")
+      .select("event_count, last_event_at, user_id, user_email")
       .eq("id", psid)
       .maybeSingle()
 
@@ -184,9 +187,14 @@ export async function POST(request: NextRequest, { params }: { params: { psid: s
     const lastEvent = parseTimestamp(session.last_event_at) ?? now
     const lastEventIso = (durationTotal || entryTotal ? now : lastEvent).toISOString()
 
-    const updates = {
+    const updates: Record<string, unknown> = {
       event_count: currentEvents + entryTotal,
       last_event_at: lastEventIso,
+    }
+
+    if (authUser && (!session.user_id || session.user_id !== authUser.id || !session.user_email)) {
+      updates.user_id = authUser.id
+      updates.user_email = authUser.email ?? session.user_email ?? null
     }
 
     const { error: updateError } = await supabase.from("page_sessions").update(updates).eq("id", psid)

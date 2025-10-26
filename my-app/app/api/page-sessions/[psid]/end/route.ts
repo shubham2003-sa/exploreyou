@@ -32,9 +32,12 @@ export async function POST(request: NextRequest, { params }: { params: { psid: s
 
     const requestedEndedAt = parseTimestamp(body?.ended_at) ?? new Date()
 
+    const { data: authData } = await supabase.auth.getUser()
+    const authUser = authData?.user ?? null
+
     const { data: session, error: sessionError } = await supabase
       .from("page_sessions")
-      .select("created_at, event_count, click_count, last_event_at")
+      .select("created_at, event_count, click_count, last_event_at, user_id, user_email")
       .eq("id", psid)
       .maybeSingle()
 
@@ -64,11 +67,16 @@ export async function POST(request: NextRequest, { params }: { params: { psid: s
     }
 
     const lastEvent = parseTimestamp(session.last_event_at) ?? requestedEndedAt
-    const updates = {
+    const updates: Record<string, unknown> = {
       ended_at: requestedEndedAt.toISOString(),
       duration_seconds: durationSeconds,
       last_event_at: (lastEvent > requestedEndedAt ? lastEvent : requestedEndedAt).toISOString(),
       score: calculateScore(Number(session.click_count ?? 0), Number(session.event_count ?? 0), durationSeconds),
+    }
+
+    if (authUser && (!session.user_id || session.user_id !== authUser.id || !session.user_email)) {
+      updates.user_id = authUser.id
+      updates.user_email = authUser.email ?? session.user_email ?? null
     }
 
     const { error: updateError } = await supabase.from("page_sessions").update(updates).eq("id", psid)
