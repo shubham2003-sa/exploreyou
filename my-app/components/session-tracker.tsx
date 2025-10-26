@@ -54,6 +54,7 @@ export default function SessionTracker() {
   const cursorStatesRef = useRef(new Map<string, CursorTargetState>())
   const cursorPendingRef = useRef<CursorDwellUpdate[]>([])
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
+  const flushTimerRef = useRef<number | null>(null)
 
   const finalizeState = useCallback((state: CursorTargetState) => {
     const now = nowMs()
@@ -293,9 +294,16 @@ export default function SessionTracker() {
         const data = await res.json()
         psidRef.current = data.id
       } else {
+        const text = await res.text().catch(() => "")
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[session-tracker] failed to start page session", res.status, text)
+        }
         psidRef.current = null
       }
-    } catch {
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[session-tracker] start session request failed", error)
+      }
       psidRef.current = null
     }
   }, [])
@@ -403,38 +411,35 @@ export default function SessionTracker() {
   //   }
   // }, [markEntered, markLeft])
 
-  // PAUSED: Click tracking disabled to save memory/bandwidth
-  // useEffect(() => {
-  //   const clickHandler = (e: MouseEvent) => {
-  //     if (!psidRef.current) return
-  //     queueRef.current.push({
-  //       event_type: "click",
-  //       x: Math.floor(e.clientX),
-  //       y: Math.floor(e.clientY),
-  //       ts_ms: Date.now(),
-  //     })
-  //   }
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const clickHandler = (event: MouseEvent) => {
+      if (!psidRef.current) return
+      queueRef.current.push({
+        event_type: "click",
+        x: Math.floor(event.clientX),
+        y: Math.floor(event.clientY),
+        ts_ms: Date.now(),
+      })
+    }
 
-  //   window.addEventListener("click", clickHandler)
+    window.addEventListener("click", clickHandler)
+    return () => {
+      window.removeEventListener("click", clickHandler)
+    }
+  }, [])
 
-  //   return () => {
-  //     window.removeEventListener("click", clickHandler)
-  //   }
-  // }, [])
-
-  // PAUSED: Event queue flushing disabled to save memory/bandwidth
-  // useEffect(() => {
-  //   flushTimerRef.current = window.setInterval(() => {
-  //     void flushQueue()
-  //   }, 2000) as unknown as number
-
-  //   return () => {
-  //     if (flushTimerRef.current) {
-  //       clearInterval(flushTimerRef.current as unknown as number)
-  //       flushTimerRef.current = null
-  //     }
-  //   }
-  // }, [flushQueue])
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const id = window.setInterval(() => {
+      void flushQueue()
+    }, 2000)
+    flushTimerRef.current = id as unknown as number
+    return () => {
+      window.clearInterval(id)
+      flushTimerRef.current = null
+    }
+  }, [flushQueue])
 
   useEffect(() => {
     const handleVisibilityChange = () => {

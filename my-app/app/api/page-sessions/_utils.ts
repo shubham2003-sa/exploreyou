@@ -1,8 +1,23 @@
+import { randomUUID } from "node:crypto"
+
 import { createServerClient } from "@supabase/ssr"
 import type { NextRequest, NextResponse } from "next/server"
 import type { ResponseCookie } from "next/dist/compiled/@edge-runtime/cookies"
 
 export type CookieUpdate = { name: string; value: string; options?: Partial<ResponseCookie> }
+
+export const CLIENT_SESSION_COOKIE = "exploreyou_session_id"
+
+function queueClientSessionCookie(updates: CookieUpdate[], value: string) {
+  updates.push({
+    name: CLIENT_SESSION_COOKIE,
+    value,
+    options: {
+      httpOnly: true,
+      sameSite: "lax",
+    },
+  })
+}
 
 export function assertSupabaseConfig() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -49,6 +64,20 @@ export function parseJson(request: NextRequest): Promise<unknown> {
   return request.json().catch(() => ({}))
 }
 
+export function ensureClientSessionId(request: NextRequest, updates: CookieUpdate[]) {
+  const existing = request.cookies.get(CLIENT_SESSION_COOKIE)?.value
+  if (existing) {
+    return existing
+  }
+  const sessionId = randomUUID()
+  queueClientSessionCookie(updates, sessionId)
+  return sessionId
+}
+
+export function setClientSessionId(updates: CookieUpdate[], value: string) {
+  queueClientSessionCookie(updates, value)
+}
+
 export function parseTimestamp(value: unknown): Date | null {
   if (typeof value === "number" && Number.isFinite(value)) {
     const fromMs = new Date(value)
@@ -62,6 +91,13 @@ export function parseTimestamp(value: unknown): Date | null {
     return value
   }
   return null
+}
+
+export function isUniqueConstraintError(error: { code?: string; message?: string } | null | undefined) {
+  if (!error) return false
+  if (error.code === "23505") return true
+  const message = (error.message || "").toLowerCase()
+  return message.includes("duplicate key") || message.includes("23505")
 }
 
 export function eventTimestampFromItem(item: Record<string, unknown>): Date {
