@@ -928,8 +928,17 @@ export default function StudyStreamsPage() {
                     if (selectedOptionRef.current) {
                       navigateWithOption(selectedOptionRef.current, selectedOptionLabelRef.current)
                     } else {
+                      const fallbackStream = overlayStream
+                      const storedSelection = fallbackStream ? selectionMap[fallbackStream] : null
+                      if (fallbackStream && storedSelection?.key) {
+                        navigateWithOption(storedSelection.key, storedSelection.label)
+                        return
+                      }
+                      navigatingRef.current = true
                       closeOverlay()
-                      if (!navigatingRef.current) {
+                      if (fallbackStream) {
+                        router.push(`/task-simulation/${fallbackStream}`)
+                      } else {
                         router.push("/study-streams")
                       }
                     }
