@@ -92,7 +92,7 @@ export async function POST(request: NextRequest, { params }: { params: { psid: s
     const { data: authData } = await supabase.auth.getUser()
     const authUser = authData?.user ?? null
 
-    const { data: session, error: sessionError } = await supabase
+    const { data: sessionRow, error: sessionError } = await supabase
       .from("page_sessions")
       .select("event_count, click_count, user_id, user_email")
       .eq("id", psid)
@@ -107,15 +107,23 @@ export async function POST(request: NextRequest, { params }: { params: { psid: s
       return response
     }
 
-    if (!session) {
+    if (!sessionRow) {
       const response = NextResponse.json({ detail: "Page session not found" }, { status: 404 })
       applyCookieUpdates(response, cookieUpdates)
       return response
     }
 
+    type SessionRow = {
+      event_count: number | null
+      click_count: number | null
+      user_id?: string | null
+      user_email?: string | null
+    }
+    const session = sessionRow as SessionRow
+
     const currentEvents = Number(session.event_count ?? 0)
     const currentClicks = Number(session.click_count ?? 0)
-    const updates = {
+    const updates: Record<string, unknown> = {
       event_count: currentEvents + sanitized.length,
       click_count: currentClicks + clickIncrement,
       last_event_at: (latestTimestamp.getTime() > 0 ? latestTimestamp : new Date()).toISOString(),
