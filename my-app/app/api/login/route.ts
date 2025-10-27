@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 import type { ResponseCookie } from "next/dist/compiled/@edge-runtime/cookies"
 
+import { CLIENT_SESSION_COOKIE } from "../page-sessions/_utils"
+
 export const runtime = "nodejs"
 
 export async function POST(request: NextRequest) {
@@ -43,6 +45,18 @@ export async function POST(request: NextRequest) {
     }
 
     const user = data?.user
+
+    const sessionCookie = request.cookies.get(CLIENT_SESSION_COOKIE)?.value ?? null
+    if (sessionCookie && user?.id) {
+      await supabase
+        .from("page_sessions")
+        .update({
+          user_id: user.id,
+          user_email: user.email ?? null,
+        })
+        .eq("user_session_id", sessionCookie)
+        .is("user_id", null)
+    }
 
     const res = NextResponse.json({ email: user?.email ?? email, name: user?.user_metadata?.name ?? null })
     cookieUpdates.forEach(({ name, value, options }) => {
