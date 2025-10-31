@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useScore } from "@/components/score-provider"
 import { recordVideoProgressEvent } from "@/lib/video-progress"
 import { getTaskScenario } from "@/config/task-scenarios"
@@ -61,10 +61,11 @@ export default function TaskSimulationPage() {
   const totalMinutes = Math.max(1, scenario.timerMinutes)
   const totalSeconds = useMemo(() => Math.max(1, Math.round(totalMinutes * 60)), [totalMinutes])
 
-  const [analysisState, setAnalysisState] = useState<AnalysisState>("running")
+  const [analysisState, setAnalysisState] = useState<AnalysisState>("idle")
   const [timeLeft, setTimeLeft] = useState<number>(totalSeconds)
   const [scoreValues, setScoreValues] = useState<ScoreValueState>(() => createInitialScores())
   const { recordScore } = useScore()
+  const completionLoggedRef = useRef(false)
 
   const completedScoreValues = useMemo(() => {
     if (subject === "consulting") {
@@ -72,12 +73,6 @@ export default function TaskSimulationPage() {
     }
     return [78, 74, 72, 80]
   }, [subject])
-
-  useEffect(() => {
-    setAnalysisState("running")
-    setTimeLeft(totalSeconds)
-    setScoreValues(createInitialScores())
-  }, [scenario.id, totalSeconds])
 
   useEffect(() => {
     if (analysisState !== "running") return
@@ -112,6 +107,27 @@ export default function TaskSimulationPage() {
     [simulationVideoId, streamTag, timeLeft, totalSeconds],
   )
 
+  const startAnalysis = useCallback(() => {
+    setAnalysisState("running")
+    setTimeLeft(totalSeconds)
+    setScoreValues(createInitialScores())
+    completionLoggedRef.current = false
+    void recordVideoProgressEvent({
+      videoId: simulationVideoId,
+      videoUrl: undefined,
+      progress: 0,
+      positionSeconds: 0,
+      durationSeconds: totalSeconds,
+      streamSelected: streamTag,
+      taskStatus: "in_progress",
+      eventName: "analysis_started",
+    })
+  }, [simulationVideoId, streamTag, totalSeconds])
+
+  useEffect(() => {
+    startAnalysis()
+  }, [startAnalysis, scenario.id])
+
   const revealScores = useCallback(() => {
     const nextScores = createInitialScores()
     SCORE_LABELS.forEach((label, index) => {
@@ -124,6 +140,8 @@ export default function TaskSimulationPage() {
   }, [completedScoreValues])
 
   const completeAnalysis = useCallback(() => {
+    if (completionLoggedRef.current) return
+    completionLoggedRef.current = true
     setAnalysisState("completed")
     revealScores()
     sendProgressEvent("analysis_completed", 1, "completed")
@@ -141,6 +159,10 @@ export default function TaskSimulationPage() {
     if (timeLeft > 0) return
     completeAnalysis()
   }, [analysisState, completeAnalysis, timeLeft])
+
+  const handleBeginAnalysis = () => {
+    startAnalysis()
+  }
 
   const handleStartNextVideo = () => {
     sendProgressEvent("next_video_started", 1, "completed")
@@ -179,15 +201,17 @@ export default function TaskSimulationPage() {
               <div className="space-y-4 text-white">
                 {scenario.metrics.map((metric) => (
                   <div key={metric.label} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs uppercase tracking-wide text-white/70">
-                      <span>{metric.label}</span>
-                      <span className="font-semibold text-white">{metric.value}%</span>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-white/70">
+                      {metric.label}
                     </div>
-                    <div className="h-2 w-full rounded-full bg-white/20">
+                    <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/20">
                       <div
-                        className={`h-2 rounded-full ${metric.colorClass}`}
+                        className={`absolute inset-y-0 left-0 ${metric.colorClass}`}
                         style={{ width: `${metric.value}%` }}
                       />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-white">
+                        {metric.value}%
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -275,10 +299,9 @@ export default function TaskSimulationPage() {
           <Button
             size="lg"
             className="w-full max-w-md rounded-xl bg-indigo-600 px-8 py-6 text-base font-semibold text-white hover:bg-indigo-500"
-            onClick={completeAnalysis}
-            disabled={analysisState === "completed"}
+            onClick={handleBeginAnalysis}
           >
-            {analysisState === "completed" ? "Analysis Synced" : "Begin Data Analysis"}
+            Begin Data Analysis
           </Button>
           <Button
             variant="outline"
