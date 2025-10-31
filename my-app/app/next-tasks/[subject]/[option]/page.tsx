@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
@@ -15,7 +15,7 @@ const OPTION_CONTENT: Record<string, { headline: string; description: string }> 
   "option-a": {
     headline: "Own In-Store Experience",
     description:
-      "Design the refreshed customer journey: prioritize ambiance, service rituals, and in-store storytelling that rebuilds the Starbucks ‘third place’.",
+      "Design the refreshed customer journey: prioritize ambiance, service rituals, and in-store storytelling that rebuilds the Starbucks 'third place'.",
   },
   "option-b": {
     headline: "Lead Supply Chain & Logistics",
@@ -94,12 +94,14 @@ export default function NextTasksOptionPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header title={`${subject} – Next Tasks`} />
+      <Header title={`${subject} - Next Tasks`} />
 
       <main className="px-6 py-10">
         <div className="mx-auto flex max-w-3xl flex-col gap-8">
           <section className="space-y-4">
-            <h2 className="text-2xl font-semibold">Option {optionLabel}: {optionContent.headline}</h2>
+            <h2 className="text-2xl font-semibold">
+              Option {optionLabel}: {optionContent.headline}
+            </h2>
             <p className="text-muted-foreground">{optionContent.description}</p>
             <p className="text-sm text-muted-foreground">
               Status: {completed ? "Completed" : "In progress"}
