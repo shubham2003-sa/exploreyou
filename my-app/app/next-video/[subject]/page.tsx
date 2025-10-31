@@ -14,6 +14,11 @@ import {
 } from "@/lib/video-progress"
 
 const CONSULTING_NEXT_SEQUENCE = ["videos/task2 partner first day.mp4", "videos/2.2 Monday10am.mp4"]
+const CONSULTING_DECISION_LABELS: Record<"A" | "B" | "C", string> = {
+  A: "I'll own In-Store Experience",
+  B: "I'll lead Supply Chain & Logistics",
+  C: "I'll focus on Financials & Store Portfolio",
+}
 
 type FullscreenCapableElement = HTMLDivElement & {
   webkitRequestFullscreen?: () => Promise<void>
@@ -38,6 +43,10 @@ export default function NextVideoPage() {
   const videoId = `next-video-${subject}`
   const sequence = useMemo(() => (subject === "consulting" ? CONSULTING_NEXT_SEQUENCE : null), [subject])
   const hasInteractiveOptions = Boolean(sequence)
+  const optionKeys = useMemo(
+    () => (subject === "consulting" ? (["A", "B", "C"] as const) : (["A", "B"] as const)),
+    [subject],
+  )
   const [sequenceIndex, setSequenceIndex] = useState(0)
 
   const progressVideoId = sequence ? `${videoId}-segment-${sequenceIndex + 1}` : videoId
@@ -51,7 +60,7 @@ export default function NextVideoPage() {
   const [timerVisible, setTimerVisible] = useState(false)
   const [timerProgress, setTimerProgress] = useState(1)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const [navigating, setNavigating] = useState<"A" | "B" | null>(null)
+  const [navigating, setNavigating] = useState<"A" | "B" | "C" | null>(null)
   const [muted, setMuted] = useState(() => !hasInteractiveOptions)
   const autoAdvanceTriggeredRef = useRef(false)
 
@@ -155,7 +164,7 @@ export default function NextVideoPage() {
     }
   }, [progressVideoId])
 
-  const handleOptionSelect = async (option: "A" | "B") => {
+  const handleOptionSelect = async (option: "A" | "B" | "C") => {
     if (navigating) return
     setNavigating(option)
     const latest = lastRecordRef.current
@@ -174,7 +183,13 @@ export default function NextVideoPage() {
         await document.exitFullscreen().catch(() => undefined)
       }
     } finally {
-      const target = `/next-tasks/${subject}/option-${option.toLowerCase()}`
+      let target = `/next-tasks/${subject}/option-${option.toLowerCase()}`
+      if (subject === "consulting") {
+        const label = CONSULTING_DECISION_LABELS[option]
+        const params = new URLSearchParams()
+        params.set("label", label)
+        target = `${target}?${params.toString()}`
+      }
       setTimeout(() => router.push(target), 0)
     }
   }
@@ -310,24 +325,29 @@ export default function NextVideoPage() {
 
       {hasInteractiveOptions && (
         <div className="pointer-events-auto fixed left-0 right-0 bottom-0 z-[1000003]" style={{ height: "9.5rem" }}>
-          <div className="flex h-full w-full items-start bg-black/95">
-            <button
-              aria-label="Option A"
-              className="flex-1 h-full pt-6 text-xl font-normal tracking-normal text-white hover:bg-black/95 md:text-2xl"
-              style={{ background: "transparent", border: "none" }}
-              onClick={() => handleOptionSelect("A")}
-            >
-              <span className="mt-0">{navigating === "A" ? "Loading..." : "Option A"}</span>
-            </button>
-            <div className="w-px bg-white/20" />
-            <button
-              aria-label="Option B"
-              className="flex-1 h-full pt-6 text-xl font-normal tracking-normal text-white hover:bg-black/95 md:text-2xl"
-              style={{ background: "transparent", border: "none" }}
-              onClick={() => handleOptionSelect("B")}
-            >
-              <span className="mt-0">{navigating === "B" ? "Loading..." : "Option B"}</span>
-            </button>
+          <div className="flex h-full w-full items-stretch bg-black/95">
+            {optionKeys.map((key, index) => {
+              const label =
+                subject === "consulting"
+                  ? CONSULTING_DECISION_LABELS[key]
+                  : key === "A"
+                    ? "Option A"
+                    : "Option B"
+              const isLoading = navigating === key
+              return (
+                <div key={key} className="flex h-full flex-1">
+                  <button
+                    aria-label={label}
+                    className="flex h-full flex-1 items-center justify-center px-6 pt-6 text-xl font-normal tracking-normal text-white transition-colors hover:bg-black/90 md:text-2xl"
+                    style={{ background: "transparent", border: "none" }}
+                    onClick={() => handleOptionSelect(key)}
+                  >
+                    <span className="px-4 text-center leading-snug">{isLoading ? "Loading..." : label}</span>
+                  </button>
+                  {index < optionKeys.length - 1 ? <div className="h-full w-px bg-white/20" /> : null}
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

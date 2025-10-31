@@ -13,14 +13,19 @@ import {
 
 const OPTION_CONTENT: Record<string, { headline: string; description: string }> = {
   "option-a": {
-    headline: "Structured Insights",
+    headline: "Own In-Store Experience",
     description:
-      "Work through a guided sequence of analysis tasks that reinforce the primary concepts from the previous videos.",
+      "Design the refreshed customer journey: prioritize ambiance, service rituals, and in-store storytelling that rebuilds the Starbucks ‘third place’.",
   },
   "option-b": {
-    headline: "Applied Challenges",
+    headline: "Lead Supply Chain & Logistics",
     description:
-      "Tackle open-ended challenges that encourage experimentation and creative thinking using the material you just watched.",
+      "Stabilize product availability and cost structure. Build a rapid plan for sourcing, inventory, and barista workflows that restores reliability.",
+  },
+  "option-c": {
+    headline: "Focus on Financials & Store Portfolio",
+    description:
+      "Model the turnaround economics. Evaluate store closures, capital allocation, and pricing levers that protect viability while funding the reset.",
   },
 }
 
@@ -29,7 +34,7 @@ export default function NextTasksOptionPage() {
   const router = useRouter()
   const subject = (params.subject as string) ?? ""
   const optionSlug = ((params.option as string) ?? "option-a").toLowerCase()
-  const optionLabel = optionSlug.endsWith("b") ? "B" : "A"
+  const optionLabel = optionSlug.endsWith("c") ? "C" : optionSlug.endsWith("b") ? "B" : "A"
   const videoId = `next-tasks-${subject}-${optionSlug}`
 
   const [completed, setCompleted] = useState(false)
