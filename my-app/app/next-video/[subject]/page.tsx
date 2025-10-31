@@ -58,6 +58,7 @@ export default function NextVideoPage() {
   const lastRecordRef = useRef<VideoProgressRecord | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [timerVisible, setTimerVisible] = useState(false)
+  const [optionsVisible, setOptionsVisible] = useState(false)
   const [timerProgress, setTimerProgress] = useState(1)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [navigating, setNavigating] = useState<"A" | "B" | "C" | null>(null)
@@ -202,6 +203,7 @@ export default function NextVideoPage() {
 
   useEffect(() => {
     setTimerVisible(false)
+    setOptionsVisible(false)
     setTimerProgress(1)
     if (timerRef.current) {
       clearInterval(timerRef.current)
@@ -209,6 +211,7 @@ export default function NextVideoPage() {
     }
     const timeoutId = window.setTimeout(() => {
       setTimerVisible(true)
+      setOptionsVisible(true)
       const startedAt = Date.now()
       timerRef.current = setInterval(() => {
         const elapsed = Date.now() - startedAt
@@ -323,7 +326,7 @@ export default function NextVideoPage() {
         </div>
       )}
 
-      {hasInteractiveOptions && (
+      {hasInteractiveOptions && optionsVisible && (
         <div className="pointer-events-auto fixed left-0 right-0 bottom-0 z-[1000003]" style={{ height: "9.5rem" }}>
           <div className="flex h-full w-full items-stretch bg-black/95">
             {optionKeys.map((key, index) => {

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useScore } from "@/components/score-provider"
 import { recordVideoProgressEvent } from "@/lib/video-progress"
 import { getTaskScenario } from "@/config/task-scenarios"
@@ -61,10 +61,9 @@ export default function TaskSimulationPage() {
   const totalMinutes = Math.max(1, scenario.timerMinutes)
   const totalSeconds = useMemo(() => Math.max(1, Math.round(totalMinutes * 60)), [totalMinutes])
 
-  const [analysisState, setAnalysisState] = useState<AnalysisState>("idle")
+  const [analysisState, setAnalysisState] = useState<AnalysisState>("running")
   const [timeLeft, setTimeLeft] = useState<number>(totalSeconds)
   const [scoreValues, setScoreValues] = useState<ScoreValueState>(() => createInitialScores())
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const { recordScore } = useScore()
 
   const completedScoreValues = useMemo(() => {
@@ -75,22 +74,10 @@ export default function TaskSimulationPage() {
   }, [subject])
 
   useEffect(() => {
-    setAnalysisState("idle")
+    setAnalysisState("running")
     setTimeLeft(totalSeconds)
     setScoreValues(createInitialScores())
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-      timeoutRef.current = null
-    }
   }, [scenario.id, totalSeconds])
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
-    }
-  }, [])
 
   useEffect(() => {
     if (analysisState !== "running") return
@@ -136,25 +123,24 @@ export default function TaskSimulationPage() {
     setScoreValues(nextScores)
   }, [completedScoreValues])
 
-  const handleBeginAnalysis = () => {
-    if (analysisState !== "idle") return
-    setAnalysisState("running")
-    setScoreValues(createInitialScores())
-    sendProgressEvent("analysis_started", 0, "in_progress")
+  const completeAnalysis = useCallback(() => {
+    setAnalysisState("completed")
+    revealScores()
+    sendProgressEvent("analysis_completed", 1, "completed")
+    if (scenario.completionScore != null) {
+      void recordScore({
+        pointsEarned: scenario.completionScore,
+        pointsPossible: 100,
+        source: `analysis:${subject || "unknown"}:${optionKey ?? "default"}`,
+      })
+    }
+  }, [optionKey, recordScore, revealScores, scenario.completionScore, sendProgressEvent, subject])
 
-    timeoutRef.current = setTimeout(() => {
-      setAnalysisState("completed")
-      revealScores()
-      sendProgressEvent("analysis_completed", 1, "completed")
-      if (scenario.completionScore != null) {
-        void recordScore({
-          pointsEarned: scenario.completionScore,
-          pointsPossible: 100,
-          source: `analysis:${subject || "unknown"}:${optionKey ?? "default"}`,
-        })
-      }
-    }, 1200)
-  }
+  useEffect(() => {
+    if (analysisState !== "running") return
+    if (timeLeft > 0) return
+    completeAnalysis()
+  }, [analysisState, completeAnalysis, timeLeft])
 
   const handleStartNextVideo = () => {
     sendProgressEvent("next_video_started", 1, "completed")
@@ -289,10 +275,10 @@ export default function TaskSimulationPage() {
           <Button
             size="lg"
             className="w-full max-w-md rounded-xl bg-indigo-600 px-8 py-6 text-base font-semibold text-white hover:bg-indigo-500"
-            onClick={handleBeginAnalysis}
-            disabled={analysisState !== "idle"}
+            onClick={completeAnalysis}
+            disabled={analysisState === "completed"}
           >
-            {analysisState === "completed" ? "Analysis Synced" : analysisState === "running" ? "Analyzing..." : scenario.ctaLabel}
+            {analysisState === "completed" ? "Analysis Synced" : "Begin Data Analysis"}
           </Button>
           <Button
             variant="outline"
