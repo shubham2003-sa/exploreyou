@@ -80,29 +80,8 @@ const FALLBACK_SCENARIO: TaskScenarioContent = {
       ],
     },
   ],
-  analysisPrompts: [
-    {
-      title: "Checklist",
-      steps: [
-        "List two data points you still need.",
-        "Draft the headline you would share with the client sponsor.",
-      ],
-    },
-  ],
-  deliverables: [
-    "Capture the single most important risk and opportunity.",
-    "Draft a next-step recommendation aligned to the client's priorities.",
-  ],
-  analysisScores: [
-    { label: "Insight Quality", value: 72 },
-    { label: "Client Readiness", value: 68 },
-  ],
-  tips: [
-    {
-      title: "Keep It Actionable",
-      description: "Every observation should connect to a decision or next step for the client.",
-    },
-  ],
+  ctaLabel: "Begin Data Analysis",
+  completionScore: 70,
 }
 
 const consultingScenario: ScenarioDefinition = {
