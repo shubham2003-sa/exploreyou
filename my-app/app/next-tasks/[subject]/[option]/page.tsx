@@ -1,7 +1,7 @@
 "use client"
 
 import clsx from "clsx"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Clock } from "lucide-react"
 
@@ -54,6 +54,9 @@ const LOGISTICS_OPTIONS = [
 
 const LOGISTICS_INSIGHT =
   "Exactly. This is the critical insight. For a premium coffee company, spending over three times as much on logistics as on its core ingredient is a massive red flag. It signals a major problem in the supply chain that needs immediate investigation. Therefore, operational complexity has become so inefficient that it's destroying Starbuck's profitability."
+
+const LOGISTICS_MILK_MESSAGE =
+  "While it's true that milk costs more than the beans in this cup, this comparison is a distraction. The absolute difference is small, and it overlooks the much more significant cost anomaly in the data. Therefore, focusing on this small-scale inefficiency means missing the multi-million dollar problem."
 
 export default function NextTasksOptionPage() {
   const params = useParams()
@@ -149,51 +152,52 @@ function DefaultNextTasksOption({ subject, optionSlug, optionLabel, videoId, rou
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header title={`${subject} - Next Tasks`} />
+    <div className="min-h-screen bg-[#0b1220] text-slate-100">
+      <Header title={`${subject} - Next Tasks`} variant="on-dark" />
 
-      <main className="px-6 py-10">
-        <div className="mx-auto flex max-w-3xl flex-col gap-8">
-          <section className="space-y-4">
-            <h2 className="text-2xl font-semibold">
-              Option {optionLabel}: {optionContent.headline}
-            </h2>
-            <p className="text-muted-foreground">{optionContent.description}</p>
-            <p className="text-sm text-muted-foreground">
-              Status: {completed ? "Completed" : "In progress"}
+      <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 pb-16 pt-12">
+        <section className="rounded-3xl border border-slate-700 bg-[linear-gradient(135deg,#0f1729,#141f35)] p-8 shadow-lg">
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-300">
+              Option {optionLabel}
             </p>
-          </section>
-
-          <section className="space-y-4">
-            <h3 className="text-lg font-medium">Task Checklist</h3>
-            <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
-              <li>Review the scenario brief and highlight the critical data points.</li>
-              <li>Draft your recommended approach and potential trade-offs.</li>
-              <li>Summarize the expected outcomes before submitting for review.</li>
-            </ul>
-          </section>
-
-          <div className="flex flex-wrap gap-3">
-            <Button
-              className="rounded-lg border-2 border-foreground bg-background text-foreground hover:bg-muted"
-              onClick={() => router.push("/study-streams")}
-            >
-              Back to Study Streams
-            </Button>
-            <Button
-              variant="outline"
-              className="rounded-lg border-2 border-foreground text-foreground hover:bg-muted"
-              onClick={() => router.push(`/task-simulation/${subject}?option=${optionLabel}`)}
-            >
-              Revisit Simulation Tasks
-            </Button>
-            <Button
-              className="rounded-lg border-2 border-foreground bg-foreground text-background hover:bg-foreground/90"
-              onClick={handleComplete}
-            >
-              Mark Task As Complete
-            </Button>
+            <h2 className="text-2xl font-semibold text-white">{optionContent.headline}</h2>
+            <p className="text-sm text-slate-200">{optionContent.description}</p>
+            <p className="text-xs font-medium uppercase tracking-widest text-slate-400">
+              Status: <span className="text-white">{completed ? "Completed" : "In progress"}</span>
+            </p>
           </div>
+        </section>
+
+        <section className="rounded-3xl border border-slate-700 bg-slate-900/60 p-8 shadow-lg">
+          <h3 className="text-lg font-semibold text-white">Task Checklist</h3>
+          <ul className="mt-4 space-y-3 text-sm text-slate-200">
+            <li>Review the scenario brief and highlight the critical data points.</li>
+            <li>Draft your recommended approach and potential trade-offs.</li>
+            <li>Summarize the expected outcomes before submitting for review.</li>
+          </ul>
+        </section>
+
+        <div className="flex flex-wrap gap-3">
+          <Button
+            className="rounded-xl border border-slate-600 bg-slate-900/80 px-6 py-3 text-white transition hover:bg-slate-800"
+            onClick={() => router.push("/study-streams")}
+          >
+            Back to Study Streams
+          </Button>
+          <Button
+            variant="outline"
+            className="rounded-xl border border-slate-500 bg-transparent px-6 py-3 text-white transition hover:bg-slate-800"
+            onClick={() => router.push(`/task-simulation/${subject}?option=${optionLabel}`)}
+          >
+            Revisit Simulation Tasks
+          </Button>
+          <Button
+            className="rounded-xl border border-blue-500 bg-blue-500 px-6 py-3 text-white transition hover:bg-blue-500/90"
+            onClick={handleComplete}
+          >
+            Mark Task As Complete
+          </Button>
         </div>
       </main>
     </div>
@@ -210,7 +214,8 @@ function ConsultingLogisticsTask({ subject, optionLabel, videoId }: LogisticsTas
   const { recordScore } = useScore()
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [completed, setCompleted] = useState(false)
-  const [showOverlay, setShowOverlay] = useState<{ text: string; onContinue?: () => void } | null>(null)
+  const [showOverlay, setShowOverlay] = useState<{ text: string } | null>(null)
+  const overlayTimeoutRef = useRef<number | null>(null)
   const optionLetters = ["A", "B", "C"] as const
   const correctIndex = 2
 
@@ -267,10 +272,16 @@ function ConsultingLogisticsTask({ subject, optionLabel, videoId }: LogisticsTas
   }, [completed, correctIndex, optionLabel, recordScore, subject, videoId])
 
   const handleOptionSelect = (index: number) => {
+    if (overlayTimeoutRef.current) {
+      window.clearTimeout(overlayTimeoutRef.current)
+      overlayTimeoutRef.current = null
+    }
     setSelectedIndex(index)
     if (index === correctIndex) {
       completeTask()
-      setShowOverlay({ text: LOGISTICS_INSIGHT })
+      overlayTimeoutRef.current = window.setTimeout(() => {
+        setShowOverlay({ text: LOGISTICS_INSIGHT })
+      }, 180)
       return
     }
 
@@ -286,17 +297,26 @@ function ConsultingLogisticsTask({ subject, optionLabel, videoId }: LogisticsTas
     })
 
     if (index === 0) {
-      setShowOverlay({
-        text: "Exactly. This is the critical insight. For a premium coffee company, spending over three times as much on logistics as on its core ingredient is a massive red flag. It signals a major problem in the supply chain that needs immediate investigation. Therefore, operational complexity has become so inefficient that it's destroying Starbuck's profitability.",
-      })
+      overlayTimeoutRef.current = window.setTimeout(() => {
+        setShowOverlay({ text: LOGISTICS_INSIGHT })
+      }, 180)
     } else {
-      setShowOverlay({
-        text: "While it's true that milk costs more than the beans in this cup, this comparison is a distraction. The absolute difference is small, and it overlooks the much more significant cost anomaly in the data. Therefore, focusing on this small-scale inefficiency means missing the multi-million dollar problem.",
-      })
+      overlayTimeoutRef.current = window.setTimeout(() => {
+        setShowOverlay({ text: LOGISTICS_MILK_MESSAGE })
+      }, 180)
     }
   }
 
   const showResults = selectedIndex !== null
+
+  useEffect(() => {
+    return () => {
+      if (overlayTimeoutRef.current) {
+        window.clearTimeout(overlayTimeoutRef.current)
+        overlayTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   return (
     <div className="relative min-h-screen bg-[#0b1220] text-slate-100">
@@ -419,6 +439,10 @@ function ConsultingLogisticsTask({ subject, optionLabel, videoId }: LogisticsTas
               className="mt-6 w-full rounded-xl bg-blue-500 text-white hover:bg-blue-500/90"
               onClick={() => {
                 setShowOverlay(null)
+                if (overlayTimeoutRef.current) {
+                  window.clearTimeout(overlayTimeoutRef.current)
+                  overlayTimeoutRef.current = null
+                }
               }}
             >
               {selectedIndex === correctIndex ? "Continue" : "Try Again"}

@@ -161,7 +161,11 @@ export default function TaskSimulationPage() {
   }, [analysisState, completeAnalysis, timeLeft])
 
   const handleBeginAnalysis = () => {
-    startAnalysis()
+    if (analysisState === "completed") {
+      startAnalysis()
+    } else {
+      completeAnalysis()
+    }
   }
 
   const handleStartNextVideo = () => {
@@ -201,17 +205,15 @@ export default function TaskSimulationPage() {
               <div className="space-y-4 text-white">
                 {scenario.metrics.map((metric) => (
                   <div key={metric.label} className="space-y-1.5">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-white/70">
-                      {metric.label}
+                    <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-white/70">
+                      <span>{metric.label}</span>
+                      <span className="text-white">{metric.value}%</span>
                     </div>
-                    <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/20">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-white/20">
                       <div
-                        className={`absolute inset-y-0 left-0 ${metric.colorClass}`}
+                        className={`h-2 rounded-full ${metric.colorClass}`}
                         style={{ width: `${metric.value}%` }}
                       />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-white">
-                        {metric.value}%
-                      </span>
                     </div>
                   </div>
                 ))}
