@@ -1,0 +1,264 @@
+{
+  "id": "consulting",
+  "title": "Consulting Career Stream",
+  "start": "AL1",
+  "nodes": {
+    "A1": {
+      "type": "video",
+      "title": "Matrix Welcome Page",
+      "video": "PASTE_VIDEO_URL_A1",
+      "choices": [
+        { "label": "Continue", "next": "BA1" }
+      ],
+      "notes": "Pre-start splash. Remove if unused."
+    },
+    "BA1": {
+      "type": "video",
+      "title": "Ad for ExploreYou",
+      "video": "PASTE_VIDEO_URL_BA1",
+      "choices": [
+        { "label": "Continue", "next": "B1" }
+      ]
+    },
+    "C1": {
+      "type": "video",
+      "title": "Kids VR Welcome Page",
+      "video": "PASTE_VIDEO_URL_C1",
+      "choices": [
+        { "label": "Continue", "next": "B1" }
+      ],
+      "notes": "Delete if this path isn't in the final flow."
+    },
+    "B1": {
+      "type": "video",
+      "title": "ExploreYou Video",
+      "video": "PASTE_VIDEO_URL_B1",
+      "choices": [
+        { "label": "Continue", "next": "E1" }
+      ]
+    },
+    "E1": {
+      "type": "video",
+      "title": "Career Choices",
+      "video": "PASTE_VIDEO_URL_E1",
+      "choices": [
+        { "label": "Continue", "next": "AL1" }
+      ]
+    },
+    "AL1": {
+      "type": "video",
+      "title": "Introduction Video",
+      "video": "PASTE_VIDEO_URL_AL1",
+      "overlays": [
+        { "html": "PASTE_OVERLAY_HTML_AL1" }
+      ],
+      "choices": [
+        { "label": "Continue", "next": "F1" }
+      ],
+      "notes": "Primary start node."
+    },
+    "F1": {
+      "type": "video",
+      "title": "Partner Welcome Video",
+      "video": "PASTE_VIDEO_URL_F1",
+      "choices": [
+        { "label": "Address Nervousness", "next": "G1" },
+        { "label": "Ask About Flight", "next": "H1" },
+        { "label": "Skip Ahead", "next": "AN1" }
+      ]
+    },
+    "G1": {
+      "type": "video",
+      "title": "Partner Addressing Nervousness",
+      "video": "PASTE_VIDEO_URL_G1",
+      "choices": [
+        { "label": "Morning Option 1", "next": "AN1" },
+        { "label": "Morning Option 2", "next": "AM1" }
+      ]
+    },
+    "H1": {
+      "type": "video",
+      "title": "Partner Asking About Flight",
+      "video": "PASTE_VIDEO_URL_H1",
+      "choices": [
+        { "label": "Morning Option 1", "next": "AO1" },
+        { "label": "Morning Option 2", "next": "AM1" }
+      ]
+    },
+    "AN1": {
+      "type": "video",
+      "title": "Monday 6:30 AM (Path 1)",
+      "video": "PASTE_VIDEO_URL_AN1",
+      "choices": [
+        { "label": "Laptop Review", "next": "I1" },
+        { "label": "Inbox Triage", "next": "L1" }
+      ]
+    },
+    "AM1": {
+      "type": "video",
+      "title": "Monday 6:30 AM (Path 2)",
+      "video": "PASTE_VIDEO_URL_AM1",
+      "choices": [
+        { "label": "Laptop Review", "next": "J1" },
+        { "label": "Inbox Triage", "next": "L1" }
+      ]
+    },
+    "AO1": {
+      "type": "video",
+      "title": "Monday 6:30 AM (Sleep Variant)",
+      "video": "PASTE_VIDEO_URL_AO1",
+      "choices": [
+        { "label": "Sleep Consequences", "next": "K1" },
+        { "label": "Inbox Triage", "next": "L1" }
+      ]
+    },
+    "I1": {
+      "type": "video",
+      "title": "Airplane Video of Laptop",
+      "video": "PASTE_VIDEO_URL_I1",
+      "choices": [
+        { "label": "Inbox", "next": "L1" },
+        { "label": "Market Intelligence", "next": "O1" }
+      ]
+    },
+    "J1": {
+      "type": "video",
+      "title": "Airplane Video of Laptop (Alt)",
+      "video": "PASTE_VIDEO_URL_J1",
+      "choices": [
+        { "label": "Inbox", "next": "L1" },
+        { "label": "Market Intelligence", "next": "O1" }
+      ]
+    },
+    "K1": {
+      "type": "video",
+      "title": "Airplane Video of Sleep",
+      "video": "PASTE_VIDEO_URL_K1",
+      "choices": [
+        { "label": "Inbox", "next": "L1" },
+        { "label": "Market Intelligence", "next": "O1" }
+      ]
+    },
+    "L1": {
+      "type": "sim",
+      "title": "Clear Inbox Simulation",
+      "video": "PASTE_VIDEO_URL_L1",
+      "overlays": [
+        { "html": "PASTE_OVERLAY_HTML_L1" }
+      ],
+      "choices": [
+        { "label": "Continue", "next": "AS1" }
+      ]
+    },
+    "O1": {
+      "type": "sim",
+      "title": "Market Intelligence Task",
+      "video": "PASTE_VIDEO_URL_O1",
+      "overlays": [
+        { "html": "PASTE_OVERLAY_HTML_O1" }
+      ],
+      "choices": [
+        { "label": "Continue", "next": "AS1" }
+      ]
+    },
+    "AS1": {
+      "type": "video",
+      "title": "Monday 10 AM (Path A)",
+      "video": "PASTE_VIDEO_URL_AS1",
+      "choices": [
+        { "label": "Partner Check-In", "next": "Q1" }
+      ]
+    },
+    "BB1": {
+      "type": "video",
+      "title": "Monday 10 AM (Path B)",
+      "video": "PASTE_VIDEO_URL_BB1",
+      "choices": [
+        { "label": "Partner Check-In", "next": "Q1" }
+      ]
+    },
+    "Q1": {
+      "type": "quiz",
+      "title": "Partner asking what you wanna do",
+      "question": "Our initial hypothesis is:",
+      "options": [
+        {
+          "label": "...cut barista hours, since labor ($0.60) is a major cost.",
+          "next": "feedback-labor",
+          "feedbackHtml": "PASTE_HTML_FEEDBACK_LABOR"
+        },
+        {
+          "label": "...milk price ($0.30) is the real issue.",
+          "next": "feedback-milk",
+          "feedbackHtml": "PASTE_HTML_FEEDBACK_MILK"
+        },
+        {
+          "label": "...logistics spend ($0.75) vs beans ($0.20) shows the real problem.",
+          "isCorrect": true,
+          "next": "R1",
+          "feedbackHtml": "PASTE_HTML_FEEDBACK_CORRECT"
+        }
+      ]
+    },
+    "feedback-labor": {
+      "type": "message",
+      "title": "Try Again - Labor",
+      "html": "PASTE_HTML_FEEDBACK_LABOR",
+      "choices": [
+        { "label": "Back", "next": "Q1" }
+      ]
+    },
+    "feedback-milk": {
+      "type": "message",
+      "title": "Try Again - Milk",
+      "html": "PASTE_HTML_FEEDBACK_MILK",
+      "choices": [
+        { "label": "Back", "next": "Q1" }
+      ]
+    },
+    "R1": {
+      "type": "video",
+      "title": "I'll own In-Store Experience",
+      "video": "PASTE_VIDEO_URL_R1",
+      "choices": [
+        { "label": "Continue", "next": "AT1" }
+      ]
+    },
+    "S1": {
+      "type": "video",
+      "title": "I'll lead Supply Chain & Logistics",
+      "video": "PASTE_VIDEO_URL_S1",
+      "choices": [
+        { "label": "Continue", "next": "AT1" }
+      ]
+    },
+    "T1": {
+      "type": "video",
+      "title": "I'll focus on Financials & Store Portfolio",
+      "video": "PASTE_VIDEO_URL_T1",
+      "choices": [
+        { "label": "Continue", "next": "AT1" }
+      ]
+    },
+    "AT1": {
+      "type": "video",
+      "title": "Monday 1 PM",
+      "video": "PASTE_VIDEO_URL_AT1",
+      "choices": [
+        { "label": "Head to Lobby", "next": "U1" }
+      ]
+    },
+    "U1": {
+      "type": "video",
+      "title": "Video of Entering Lobby",
+      "video": "PASTE_VIDEO_URL_U1",
+      "choices": [
+        { "label": "Meet the CEO", "next": "V1" }
+      ]
+    },
+    "V1": {
+      "type": "video",
+      "title": "Starbucks CEO 1",
+      "video": "PASTE_VIDEO_URL_V1",
+      "choices": [
+        { "label": "Continue", "next": 

@@ -61,6 +61,8 @@ export default function NextVideoPage() {
   const [optionsVisible, setOptionsVisible] = useState(false)
   const [timerProgress, setTimerProgress] = useState(1)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [videoPlaying, setVideoPlaying] = useState(false)
+  const optionsUnlockTimeoutRef = useRef<number | null>(null)
   const [navigating, setNavigating] = useState<"A" | "B" | "C" | null>(null)
   const [muted, setMuted] = useState(() => !hasInteractiveOptions)
   const autoAdvanceTriggeredRef = useRef(false)
@@ -202,40 +204,86 @@ export default function NextVideoPage() {
   }, [])
 
   useEffect(() => {
-    setTimerVisible(false)
-    setOptionsVisible(false)
-    setTimerProgress(1)
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+      if (optionsUnlockTimeoutRef.current) {
+        window.clearTimeout(optionsUnlockTimeoutRef.current)
+        optionsUnlockTimeoutRef.current = null
+      }
+    }
+  }, [])
+
+  useEffect(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current)
       timerRef.current = null
     }
-    const timeoutId = window.setTimeout(() => {
-      setTimerVisible(true)
+    if (optionsUnlockTimeoutRef.current) {
+      window.clearTimeout(optionsUnlockTimeoutRef.current)
+      optionsUnlockTimeoutRef.current = null
+    }
+    setTimerVisible(false)
+    setOptionsVisible(false)
+    setTimerProgress(1)
+    setVideoPlaying(false)
+  }, [progressVideoId, hasInteractiveOptions])
+
+  useEffect(() => {
+    if (!hasInteractiveOptions) return
+    if (optionsVisible) return
+    if (!videoPlaying) return
+    if (optionsUnlockTimeoutRef.current) return
+
+    optionsUnlockTimeoutRef.current = window.setTimeout(() => {
+      optionsUnlockTimeoutRef.current = null
       setOptionsVisible(true)
-      const startedAt = Date.now()
-      timerRef.current = setInterval(() => {
-        const elapsed = Date.now() - startedAt
-        const progress = Math.max(0, 1 - elapsed / 10000)
-        setTimerProgress(progress)
-        if (progress <= 0) {
-          if (timerRef.current) {
-            clearInterval(timerRef.current)
-            timerRef.current = null
-          }
-          setTimerVisible(false)
-          setTimerProgress(1)
-        }
-      }, 50)
-    }, 5000)
+    }, 3000)
 
     return () => {
-      window.clearTimeout(timeoutId)
+      if (optionsUnlockTimeoutRef.current) {
+        window.clearTimeout(optionsUnlockTimeoutRef.current)
+        optionsUnlockTimeoutRef.current = null
+      }
+    }
+  }, [videoPlaying, optionsVisible, hasInteractiveOptions])
+
+  useEffect(() => {
+    if (!hasInteractiveOptions || !optionsVisible) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+      setTimerVisible(false)
+      setTimerProgress(1)
+      return
+    }
+
+    setTimerVisible(true)
+    const startedAt = Date.now()
+    timerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startedAt
+      const progress = Math.max(0, 1 - elapsed / 10000)
+      setTimerProgress(progress)
+      if (progress <= 0) {
+        if (timerRef.current) {
+          clearInterval(timerRef.current)
+          timerRef.current = null
+        }
+        setTimerVisible(false)
+        setTimerProgress(1)
+      }
+    }, 50)
+
+    return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current)
         timerRef.current = null
       }
     }
-  }, [sequenceIndex])
+  }, [hasInteractiveOptions, optionsVisible])
 
   const handleNextSegment = () => {
     if (!sequence) return
@@ -301,6 +349,9 @@ export default function NextVideoPage() {
             streamSelected: `${subject}:Next${sequence ? `:Segment${sequenceIndex + 1}` : ""}`,
           }}
           initialPositionSeconds={initialPosition}
+          onPlaybackChange={(playing) => {
+            setVideoPlaying(playing)
+          }}
           onTrackedEvent={(record, eventName) => {
             if (record) {
               lastRecordRef.current = record

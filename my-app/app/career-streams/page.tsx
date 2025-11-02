@@ -148,6 +148,9 @@ export default function StudyStreamsPage() {
   const autoResumeRef = useRef(false)
   const navigatingRef = useRef(false)
   const unmountedRef = useRef(false)
+  const [optionsUnlocked, setOptionsUnlocked] = useState(false)
+  const [overlayPlaybackActive, setOverlayPlaybackActive] = useState(false)
+  const optionsUnlockTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     overlayIntroPlayingRef.current = overlayIntroPlaying
@@ -177,6 +180,33 @@ export default function StudyStreamsPage() {
     }
   }, [overlayContainer])
 
+  useEffect(() => {
+    if (optionsUnlockTimerRef.current) {
+      window.clearTimeout(optionsUnlockTimerRef.current)
+      optionsUnlockTimerRef.current = null
+    }
+    setOptionsUnlocked(false)
+    setOverlayPlaybackActive(false)
+  }, [overlayStage, overlayStream, overlayVideoUrl])
+
+  useEffect(() => {
+    if (!overlayStream) return
+    if (optionsUnlocked) return
+    if (!overlayPlaybackActive) return
+    if (optionsUnlockTimerRef.current) return
+
+    optionsUnlockTimerRef.current = window.setTimeout(() => {
+      setOptionsUnlocked(true)
+      optionsUnlockTimerRef.current = null
+    }, 3000)
+
+    return () => {
+      if (optionsUnlockTimerRef.current) {
+        window.clearTimeout(optionsUnlockTimerRef.current)
+        optionsUnlockTimerRef.current = null
+      }
+    }
+  }, [overlayPlaybackActive, optionsUnlocked, overlayStream])
   const resetTimer = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current)
@@ -219,6 +249,7 @@ export default function StudyStreamsPage() {
     setOverlayPromptUrl(null)
     setOverlayMidUrl(null)
     setOverlayStage("main")
+    setOverlayPlaybackActive(false)
     setConsultingPromptMode("default")
     overlayIntroPlayingRef.current = false
     overlayPlayerApiRef.current = null
@@ -229,6 +260,11 @@ export default function StudyStreamsPage() {
     setActiveOptionKey(null)
     setIsLoading(false)
     setPendingStream(null)
+    if (optionsUnlockTimerRef.current) {
+      window.clearTimeout(optionsUnlockTimerRef.current)
+      optionsUnlockTimerRef.current = null
+    }
+    setOptionsUnlocked(false)
   }, [overlayContainer, resetTimer])
 
   const transitionToMainStage = useCallback(() => {
@@ -550,7 +586,8 @@ export default function StudyStreamsPage() {
 
   useEffect(() => {
     const timerEligible =
-      overlayStage === "main" ||
+      overlayStage === "main" || optionVisibilityDelayRef.current === false ||
+
       (overlayStage === "prompt" && overlayStream === "consulting" && consultingPromptMode === "excitedFollowup")
 
     if (!timerEligible) {
@@ -735,10 +772,9 @@ export default function StudyStreamsPage() {
   }, [handleExplore, router, selectionMap])
 
   const isConsultingStream = overlayStream === "consulting"
-  const isIntroStage = overlayStage === "intro"
   const shouldShowOptionBar =
-    (overlayStage !== "intro" || (isConsultingStream && isIntroStage)) &&
-    !(isConsultingStream && overlayStage === "main")
+    optionsUnlocked &&
+    (overlayStage !== "intro" || isConsultingStream)
   const optionConfigs = useMemo<OptionConfig[]>(() => {
     if (!shouldShowOptionBar) return []
     if (!isConsultingStream) {
@@ -918,6 +954,9 @@ export default function StudyStreamsPage() {
                   streamSelected: overlayStream ?? undefined,
                 }}
                 initialPositionSeconds={overlayStage === "main" ? overlayInitialPosition : null}
+                onPlaybackChange={(playing) => {
+                  setOverlayPlaybackActive(playing)
+                }}
                 onTrackedEvent={(record, eventName) => {
                   if (record) {
                     overlayLastRecordRef.current = record
@@ -1011,6 +1050,9 @@ export default function StudyStreamsPage() {
     </div>
   )
 }
+
+
+
 
 
 
