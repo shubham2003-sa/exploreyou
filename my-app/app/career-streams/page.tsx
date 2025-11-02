@@ -151,6 +151,7 @@ export default function StudyStreamsPage() {
   const [optionsUnlocked, setOptionsUnlocked] = useState(false)
   const [overlayPlaybackActive, setOverlayPlaybackActive] = useState(false)
   const optionsUnlockTimerRef = useRef<number | null>(null)
+  const optionVisibilityDelayRef = useRef(false)
 
   useEffect(() => {
     overlayIntroPlayingRef.current = overlayIntroPlaying
@@ -188,6 +189,10 @@ export default function StudyStreamsPage() {
     setOptionsUnlocked(false)
     setOverlayPlaybackActive(false)
   }, [overlayStage, overlayStream, overlayVideoUrl])
+
+  useEffect(() => {
+    optionVisibilityDelayRef.current = optionsUnlocked
+  }, [optionsUnlocked])
 
   useEffect(() => {
     if (!overlayStream) return
@@ -586,9 +591,9 @@ export default function StudyStreamsPage() {
 
   useEffect(() => {
     const timerEligible =
-      overlayStage === "main" || optionVisibilityDelayRef.current === false ||
-
-      (overlayStage === "prompt" && overlayStream === "consulting" && consultingPromptMode === "excitedFollowup")
+      optionVisibilityDelayRef.current &&
+      (overlayStage === "main" ||
+        (overlayStage === "prompt" && overlayStream === "consulting" && consultingPromptMode === "excitedFollowup"))
 
     if (!timerEligible) {
       if (timerRef.current) {
@@ -638,7 +643,7 @@ export default function StudyStreamsPage() {
       setTimerVisible(false)
       setTimerProgress(1)
     }
-  }, [overlayContainer, overlayStream, overlayStage, consultingPromptMode, closeOverlay, router])
+  }, [overlayContainer, overlayStream, overlayStage, consultingPromptMode, optionsUnlocked, closeOverlay, router])
 
   const handleExplore = useCallback((streamId: string) => {
     if (overlayContainer) {
