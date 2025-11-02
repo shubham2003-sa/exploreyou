@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 
 
@@ -284,7 +284,7 @@ export default function SignUpPage() {
 
             Already have an account?{" "}
 
-            <Link href="/login" className="underline underline-offset-4">
+            <Link href="/career-login" className="underline underline-offset-4">
 
               Login
 

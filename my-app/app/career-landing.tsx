@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import React from "react"
 import { resolveVideoUrl } from "@/lib/video-url"
@@ -154,7 +154,7 @@ export default function HomePage() {
                 if (res.ok) loggedIn = true
               } catch {}
             }
-            router.push(loggedIn ? "/career-streams" : "/login")
+            router.push(loggedIn ? "/career-streams" : "/career-login")
           }}
         >
           Start Your Journey

@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -18,7 +18,7 @@ export default function ProtectedPage() {
     try {
       const userData = localStorage.getItem("user")
       if (!userData) {
-        router.push("/login")
+        router.push("/career-login")
         return
       }
       const parsed = JSON.parse(userData) as StoredUser
@@ -27,7 +27,7 @@ export default function ProtectedPage() {
         email: parsed.email ?? null,
       })
     } catch {
-      router.push("/login")
+      router.push("/career-login")
     }
   }, [router])
 

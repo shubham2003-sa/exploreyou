@@ -1,4 +1,4 @@
-"use client"
+ï»¿"use client"
 
 import type React from "react"
 
@@ -55,7 +55,7 @@ export default function LoginPage() {
           if (data?.name) resolvedName = data.name ?? null
         }
       } catch {
-        // ignore – fall back to entered email
+        // ignore ï¿½ fall back to entered email
       }
 
       saveAuthProfile({ email: resolvedEmail, name: resolvedName })
@@ -144,3 +144,4 @@ export default function LoginPage() {
     </div>
   )
 }
+
