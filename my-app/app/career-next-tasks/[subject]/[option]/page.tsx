@@ -181,14 +181,14 @@ function DefaultNextTasksOption({ subject, optionSlug, optionLabel, videoId, rou
         <div className="flex flex-wrap gap-3">
           <Button
             className="rounded-xl border border-slate-600 bg-slate-900/80 px-6 py-3 text-white transition hover:bg-slate-800"
-            onClick={() => router.push("/study-streams")}
+            onClick={() => router.push("/career-streams")}
           >
-            Back to Study Streams
+            Back to Career Streams
           </Button>
           <Button
             variant="outline"
             className="rounded-xl border border-slate-500 bg-transparent px-6 py-3 text-white transition hover:bg-slate-800"
-            onClick={() => router.push(`/task-simulation/${subject}?option=${optionLabel}`)}
+            onClick={() => router.push(`/career-simulations/${subject}?option=${optionLabel}`)}
           >
             Revisit Simulation Tasks
           </Button>

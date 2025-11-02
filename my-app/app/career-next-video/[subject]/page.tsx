@@ -251,7 +251,7 @@ export default function NextVideoPage() {
         await document.exitFullscreen().catch(() => undefined)
       }
     } finally {
-      router.push(`/task-simulation/${subject}`)
+      router.push(`/career-simulations/${subject}`)
     }
   }, [hasInteractiveOptions, router, subject])
 
@@ -266,7 +266,7 @@ export default function NextVideoPage() {
           className="rounded bg-black/80 px-4 py-2 text-white hover:bg-black/90 border border-white/20"
           onClick={() => {
             if (window.history.length > 1) router.back()
-            else router.push("/study-streams")
+            else router.push("/career-streams")
           }}
         >
           Close

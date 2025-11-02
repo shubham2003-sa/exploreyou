@@ -1,5 +1,6 @@
-﻿"use client"
+"use client"
 
+import clsx from "clsx"
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
@@ -21,6 +22,7 @@ type Stream = {
   bgColor: string
   iconColor: string
   description: string
+  available?: boolean
 }
 
 type FullscreenCapableElement = HTMLDivElement & {
@@ -71,6 +73,7 @@ const STREAMS: Stream[] = [
     bgColor: "bg-blue-100",
     iconColor: "text-blue-600",
     description: "Practice case interviews, problem structuring, and stakeholder communication",
+    available: true,
   },
   {
     id: "commerce",
@@ -78,7 +81,8 @@ const STREAMS: Stream[] = [
     icon: TrendingUp,
     bgColor: "bg-orange-100",
     iconColor: "text-orange-600",
-    description: "Learn business, economics, and finance",
+    description: "Coming soon",
+    available: false,
   },
   {
     id: "math",
@@ -86,7 +90,8 @@ const STREAMS: Stream[] = [
     icon: Calculator,
     bgColor: "bg-green-100",
     iconColor: "text-green-600",
-    description: "Master algebra, geometry, and calculus",
+    description: "Coming soon",
+    available: false,
   },
   {
     id: "arts",
@@ -94,7 +99,8 @@ const STREAMS: Stream[] = [
     icon: Palette,
     bgColor: "bg-purple-100",
     iconColor: "text-purple-600",
-    description: "Discover literature, history, and creative arts",
+    description: "Coming soon",
+    available: false,
   },
 ]
 
@@ -258,7 +264,7 @@ export default function StudyStreamsPage() {
     if (!streamId) return
 
     const labelSegment = optionLabel ? `&label=${encodeURIComponent(optionLabel)}` : ""
-    const target = `/task-simulation/${streamId}?option=${option}${labelSegment}`
+    const target = `/career-simulations/${streamId}?option=${option}${labelSegment}`
     navigatingRef.current = true
     pendingMainPlaybackRef.current = false
     selectedOptionRef.current = null
@@ -425,7 +431,7 @@ export default function StudyStreamsPage() {
     if (process.env.NODE_ENV === 'production') {
       STREAMS.forEach((stream) => {
         try {
-          router.prefetch(`/task-simulation/${stream.id}`)
+          router.prefetch(`/career-simulations/${stream.id}`)
           router.prefetch(`/next-video/${stream.id}`)
         } catch {
           // ignore prefetch errors
@@ -483,7 +489,7 @@ export default function StudyStreamsPage() {
           overlayLastRecordRef.current = record ?? null
         }
       } catch (error) {
-        console.warn('[study-streams] failed to load saved progress', error)
+        console.warn('[career-streams] failed to load saved progress', error)
       }
     }
 
@@ -506,7 +512,7 @@ export default function StudyStreamsPage() {
         }
       } catch (error) {
         if (active) setOverlayVideoUrl(STUDY_STREAMS_VIDEO_FALLBACK_URL)
-        console.warn('[study-streams] failed to resolve overlay video', error)
+        console.warn('[career-streams] failed to resolve overlay video', error)
       }
     }
 
@@ -532,7 +538,7 @@ export default function StudyStreamsPage() {
           overlayLastRecordRef.current = record ?? null
         }
       } catch (error) {
-        console.warn('[study-streams] failed to load saved progress', error)
+        console.warn('[career-streams] failed to load saved progress', error)
       }
     }
 
@@ -579,7 +585,7 @@ export default function StudyStreamsPage() {
           setTimerVisible(false)
           closeOverlay()
           if (!navigatingRef.current) {
-            router.push("/study-streams")
+            router.push("/career-streams")
           }
         }
       }, 50)
@@ -698,7 +704,7 @@ export default function StudyStreamsPage() {
             const optionValue = (normalizedOption ?? storedSelection?.key ?? 'A') as OptionKey
             const labelValue = storedSelection?.label
             const labelSegment = labelValue ? `&label=${encodeURIComponent(labelValue)}` : ""
-            router.replace(`/task-simulation/${subject}?option=${optionValue}${labelSegment}`)
+            router.replace(`/career-simulations/${subject}?option=${optionValue}${labelSegment}`)
           }
           return
         }
@@ -717,7 +723,7 @@ export default function StudyStreamsPage() {
           handleExplore(videoId)
         }
       } catch (error) {
-        console.warn('[study-streams] failed to auto resume progress', error)
+        console.warn('[career-streams] failed to auto resume progress', error)
       }
     }
 
@@ -789,12 +795,12 @@ export default function StudyStreamsPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <Header title="Study Streams" />
+      <Header title="Career Streams" />
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-6 py-16">
         <div className="mb-12 text-center">
-          <h2 className="text-4xl font-semibold sm:text-5xl">Choose Your Stream</h2>
+          <h2 className="text-4xl font-semibold sm:text-5xl">Choose Your Career Stream</h2>
           <p className="mt-4 text-lg text-muted-foreground sm:text-xl">
-            Pick a stream to dive into curated lessons and task simulations tailored to your interests.
+            Pick a career track to dive into curated lessons and task simulations tailored to your goals.
           </p>
         </div>
 
@@ -802,12 +808,18 @@ export default function StudyStreamsPage() {
           {STREAMS.map((stream) => {
             const IconComponent = stream.icon
             const isPending = pendingStream === stream.id && isLoading
+            const isAvailable = stream.available !== false
 
             return (
               <Card
                 key={stream.id}
-                className="relative cursor-pointer border border-border/60 shadow-sm transition hover:border-foreground/40"
-                onClick={() => handleExplore(stream.id)}
+                className={clsx(
+                  "relative border border-border/60 shadow-sm transition",
+                  isAvailable ? "cursor-pointer hover:border-foreground/40" : "cursor-not-allowed opacity-75",
+                )}
+                onClick={() => {
+                  if (isAvailable) handleExplore(stream.id)
+                }}
               >
                 <div className="flex h-full flex-col items-center gap-6 p-8 text-center">
                   <div className={`flex h-16 w-16 items-center justify-center rounded-lg ${stream.bgColor}`}>
@@ -817,24 +829,28 @@ export default function StudyStreamsPage() {
                   <div className="space-y-2">
                     <h3 className="text-xl font-semibold">{stream.title}</h3>
                     <p className="text-sm text-muted-foreground">{stream.description}</p>
-                    {selectionMap[stream.id] && (
-                      <p className="text-xs text-muted-foreground">Last option: {selectionMap[stream.id].label}</p>
+                    {isAvailable && selectionMap[stream.id] && (
+                      <p className="text-xs text-muted-foreground">Last path: {selectionMap[stream.id].label}</p>
                     )}
                   </div>
 
                   <Button
                     variant="outline"
-                    className="border-2 border-foreground rounded-lg px-6 py-2 hover:bg-muted bg-transparent"
+                    disabled={!isAvailable}
+                    className={clsx(
+                      "border-2 border-foreground rounded-lg px-6 py-2 bg-transparent",
+                      isAvailable ? "hover:bg-muted" : "opacity-70 cursor-not-allowed",
+                    )}
                     onClick={(event) => {
                       event.stopPropagation()
-                      handleExplore(stream.id)
+                      if (isAvailable) handleExplore(stream.id)
                     }}
                   >
-                    Explore
+                    {isAvailable ? "Explore" : "Coming Soon"}
                   </Button>
                 </div>
 
-                {isPending && (
+                {isPending && isAvailable && (
                   <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/30 backdrop-blur-sm">
                     <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/40 border-t-white" />
                   </div>
@@ -937,9 +953,9 @@ export default function StudyStreamsPage() {
                       navigatingRef.current = true
                       closeOverlay()
                       if (fallbackStream) {
-                        router.push(`/task-simulation/${fallbackStream}`)
+                        router.push(`/career-simulations/${fallbackStream}`)
                       } else {
-                        router.push("/study-streams")
+                        router.push("/career-streams")
                       }
                     }
                   }

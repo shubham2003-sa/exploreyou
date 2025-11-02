@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import type React from "react"
 
@@ -55,11 +55,11 @@ export default function LoginPage() {
           if (data?.name) resolvedName = data.name ?? null
         }
       } catch {
-        // ignore – fall back to entered email
+        // ignore � fall back to entered email
       }
 
       saveAuthProfile({ email: resolvedEmail, name: resolvedName })
-      router.push("/study-streams")
+      router.push("/career-streams")
       return
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Network error")
@@ -129,7 +129,7 @@ export default function LoginPage() {
 
           <div className="text-center text-sm text-gray-700">
             Don&apos;t have an account?{" "}
-            <Link href="/auth/sign-up" className="text-blue-600 underline underline-offset-4">
+            <Link href="/career-auth/sign-up" className="text-blue-600 underline underline-offset-4">
               Sign up
             </Link>
           </div>

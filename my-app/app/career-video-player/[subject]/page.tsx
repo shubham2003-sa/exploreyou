@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
@@ -119,7 +119,7 @@ export default function VideoPlayerPage() {
       taskStatus: "in_progress",
       eventName: `task_option_selected:Option${option}`,
     })
-    router.push(`/task-simulation/${subject}?option=${option}`)
+    router.push(`/career-simulations/${subject}?option=${option}`)
   }
 
   if (loading) {
@@ -136,7 +136,7 @@ export default function VideoPlayerPage() {
         <div className="max-w-4xl mx-auto">
           <div className="mb-4">
             <h2 className="text-xl font-medium">Educational Content</h2>
-            {error && <p className="mt-2 text-sm text-muted-foreground">{error} – showing default stream video.</p>}
+            {error && <p className="mt-2 text-sm text-muted-foreground">{error} � showing default stream video.</p>}
           </div>
 
           <div className="relative border-2 border-foreground rounded-lg overflow-hidden aspect-video mb-8">
@@ -171,7 +171,7 @@ export default function VideoPlayerPage() {
                     if (window.history.length > 1) {
                       router.back()
                     } else {
-                      router.push("/study-streams")
+                      router.push("/career-streams")
                     }
                   }}
                 >

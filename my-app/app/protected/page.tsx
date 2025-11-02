@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -49,9 +49,9 @@ export default function ProtectedPage() {
         <div className="flex gap-4">
           <Button
             className="border-2 border-foreground rounded-lg px-6 py-3 bg-background text-foreground hover:bg-muted"
-            onClick={() => router.push("/study-streams")}
+            onClick={() => router.push("/career-streams")}
           >
-            Explore Study Streams
+            Explore Career Streams
           </Button>
         </div>
       </main>
