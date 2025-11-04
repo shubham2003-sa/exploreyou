@@ -3,52 +3,10 @@
   "title": "Consulting Career Stream",
   "start": "AL1",
   "nodes": {
-    "A1": {
-      "type": "video",
-      "title": "Matrix Welcome Page",
-      "video": "PASTE_VIDEO_URL_A1",
-      "choices": [
-        { "label": "Continue", "next": "BA1" }
-      ],
-      "notes": "Pre-start splash. Remove if unused."
-    },
-    "BA1": {
-      "type": "video",
-      "title": "Ad for ExploreYou",
-      "video": "PASTE_VIDEO_URL_BA1",
-      "choices": [
-        { "label": "Continue", "next": "B1" }
-      ]
-    },
-    "C1": {
-      "type": "video",
-      "title": "Kids VR Welcome Page",
-      "video": "PASTE_VIDEO_URL_C1",
-      "choices": [
-        { "label": "Continue", "next": "B1" }
-      ],
-      "notes": "Delete if this path isn't in the final flow."
-    },
-    "B1": {
-      "type": "video",
-      "title": "ExploreYou Video",
-      "video": "PASTE_VIDEO_URL_B1",
-      "choices": [
-        { "label": "Continue", "next": "E1" }
-      ]
-    },
-    "E1": {
-      "type": "video",
-      "title": "Career Choices",
-      "video": "PASTE_VIDEO_URL_E1",
-      "choices": [
-        { "label": "Continue", "next": "AL1" }
-      ]
-    },
     "AL1": {
       "type": "video",
       "title": "Introduction Video",
-      "video": "PASTE_VIDEO_URL_AL1",
+      "video": "https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/ExploreYou%20Intro.mp4",
       "overlays": [
         { "html": "PASTE_OVERLAY_HTML_AL1" }
       ],
