@@ -331,7 +331,7 @@ export function CareerFlowRunner({ subject, className }: CareerFlowRunnerProps) 
             className="h-full w-full"
             showOptions={false}
             hideControls={false}
-            autoplay={false}
+            autoplay
             startFullscreen={false}
             trackingConfig={{
               videoId: `${subject}:${activeNodeId ?? "unknown"}`,

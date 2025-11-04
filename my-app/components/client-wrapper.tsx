@@ -9,7 +9,7 @@ export default function ClientWrapper({ children }: { children: React.ReactNode 
   return (
     <ScoreProvider>
       <SessionTracker />
-      <ScoreBar />
+      {false && <ScoreBar />}
       {children}
     </ScoreProvider>
   )
