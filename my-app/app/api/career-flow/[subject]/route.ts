@@ -24,7 +24,8 @@ export async function GET(
     const flowPath = path.join(root, safeSubject, "flow.json")
     try {
       const raw = await fs.readFile(flowPath, "utf-8")
-      const parsed = JSON.parse(raw)
+      const cleaned = raw.replace(/^\uFEFF/, "")
+      const parsed = JSON.parse(cleaned)
       return NextResponse.json(parsed)
     } catch (error) {
       const err = error as NodeJS.ErrnoException
