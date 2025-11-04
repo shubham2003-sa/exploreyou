@@ -35,6 +35,357 @@ type OptionKey = 'A' | 'B' | 'C'
 type OptionConfig = { key: OptionKey; label: string }
 type SelectionSnapshot = { key: OptionKey; label: string }
 
+type FlowChoice = {
+  label: string
+  next?: string
+  isCorrect?: boolean
+  feedbackHtml?: string
+}
+
+type ConsultingFlowOverlayProps = {
+  onClose: () => void
+  rememberSelection: (streamId: string, option: OptionKey, optionLabel?: string) => void
+  navigateWithOption: (option: OptionKey, optionLabel?: string | null) => void
+  selectionMap: Record<string, SelectionSnapshot>
+  timerVisible: boolean
+  timerProgress: number
+}
+
+type ConsultingFlowState = {
+  flow: FlowDefinition | null
+  loading: boolean
+  error: string | null
+  currentNodeId: string | null
+}
+
+const OPTION_KEY_SEQUENCE: OptionKey[] = ["A", "B", "C"]
+
+const isPlaceholderValue = (value?: string | null) => {
+  if (!value) return true
+  return /^PASTE_/i.test(value.trim())
+}
+
+function ConsultingFlowOverlay({
+  onClose,
+  rememberSelection,
+  navigateWithOption,
+  selectionMap,
+  timerVisible,
+  timerProgress,
+}: ConsultingFlowOverlayProps) {
+  const [state, setState] = useState<ConsultingFlowState>({
+    flow: null,
+    loading: true,
+    error: null,
+    currentNodeId: null,
+  })
+  const [resolvedVideoUrl, setResolvedVideoUrl] = useState<string>(STUDY_STREAMS_VIDEO_FALLBACK_URL)
+  const [optionsUnlocked, setOptionsUnlocked] = useState(false)
+  const [pendingChoice, setPendingChoice] = useState<{ key: OptionKey; label: string } | null>(null)
+  const unlockTimerRef = useRef<number | null>(null)
+  const historyRef = useRef<string[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadFlow = async () => {
+      try {
+        setState({ flow: null, loading: true, error: null, currentNodeId: null })
+        const res = await fetch(`/api/career-flow/consulting?ts=${Date.now()}`)
+        if (!res.ok) {
+          const body = (await res.json().catch(() => null)) as { error?: string } | null
+          throw new Error(body?.error ?? "Failed to load flow")
+        }
+        const data = (await res.json()) as FlowDefinition
+        if (!cancelled) {
+          historyRef.current = []
+          setState({ flow: data, loading: false, error: null, currentNodeId: data.start ?? null })
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setState({
+            flow: null,
+            loading: false,
+            error: error instanceof Error ? error.message : "Unable to load flow",
+            currentNodeId: null,
+          })
+        }
+      }
+    }
+
+    void loadFlow()
+
+    return () => {
+      cancelled = true
+      if (unlockTimerRef.current) {
+        window.clearTimeout(unlockTimerRef.current)
+        unlockTimerRef.current = null
+      }
+    }
+  }, [])
+
+  const currentNode = useMemo(() => {
+    if (!state.flow || !state.currentNodeId) return null
+    return state.flow.nodes[state.currentNodeId] ?? null
+  }, [state.flow, state.currentNodeId])
+
+  // Resolve video URL when node changes
+  useEffect(() => {
+    if (!currentNode || (currentNode.type !== "video" && currentNode.type !== "sim")) {
+      setResolvedVideoUrl(STUDY_STREAMS_VIDEO_FALLBACK_URL)
+      return
+    }
+
+    const video = currentNode.video
+    if (!video || isPlaceholderValue(video)) {
+      setResolvedVideoUrl(STUDY_STREAMS_VIDEO_FALLBACK_URL)
+      return
+    }
+
+    let cancelled = false
+    const resolve = async () => {
+      try {
+        const resolved = await resolveVideoUrl(video, STUDY_STREAMS_VIDEO_FALLBACK_URL)
+        if (!cancelled) {
+          setResolvedVideoUrl(resolved ?? STUDY_STREAMS_VIDEO_FALLBACK_URL)
+        }
+      } catch {
+        if (!cancelled) {
+          setResolvedVideoUrl(STUDY_STREAMS_VIDEO_FALLBACK_URL)
+        }
+      }
+    }
+    void resolve()
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentNode])
+
+  // Unlock options after delay
+  useEffect(() => {
+    if (unlockTimerRef.current) {
+      window.clearTimeout(unlockTimerRef.current)
+      unlockTimerRef.current = null
+    }
+
+    if (currentNode && "choices" in currentNode && currentNode.choices && currentNode.choices.length > 0) {
+      setOptionsUnlocked(false)
+      unlockTimerRef.current = window.setTimeout(() => {
+        setOptionsUnlocked(true)
+        unlockTimerRef.current = null
+      }, 3000)
+    } else {
+      setOptionsUnlocked(true)
+    }
+
+    return () => {
+      if (unlockTimerRef.current) {
+        window.clearTimeout(unlockTimerRef.current)
+        unlockTimerRef.current = null
+      }
+    }
+  }, [currentNode])
+
+  const navigateToNode = useCallback((nodeId: string | null) => {
+    if (!nodeId) {
+      onClose()
+      return
+    }
+    historyRef.current = state.currentNodeId ? [...historyRef.current, state.currentNodeId] : []
+    setState((prev) => ({
+      ...prev,
+      currentNodeId: nodeId,
+    }))
+  }, [onClose, state.currentNodeId])
+
+  const handleChoiceSelect = useCallback((choice: FlowChoice, index: number) => {
+    const optionKey = OPTION_KEY_SEQUENCE[index] ?? OPTION_KEY_SEQUENCE[0]
+    const label = choice.label ?? `Option ${optionKey}`
+    setPendingChoice({ key: optionKey, label })
+    rememberSelection("consulting", optionKey, label)
+
+    if (choice.next) {
+      navigateToNode(choice.next)
+      return
+    }
+
+    navigateWithOption(optionKey, label)
+  }, [rememberSelection, navigateToNode, navigateWithOption])
+
+  // Automatically trigger simulation when we reach a sim node (ends the overlay)
+  useEffect(() => {
+    if (!currentNode || currentNode.type !== "sim") return
+    const selection = pendingChoice ?? selectionMap["consulting"] ?? { key: "A" as OptionKey, label: currentNode.title }
+    navigateWithOption(selection.key, selection.label)
+  }, [currentNode, navigateWithOption, pendingChoice, selectionMap])
+
+  const renderContent = () => {
+    if (state.loading) {
+      return (
+        <div className="flex h-full w-full items-center justify-center">
+          <div className="flex flex-col items-center gap-4 rounded-xl border border-white/20 bg-black/40 px-6 py-5">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-white" />
+            <p className="text-sm font-medium text-white/80">Loading consulting flow…</p>
+          </div>
+        </div>
+      )
+    }
+
+    if (state.error || !currentNode) {
+      return (
+        <div className="flex h-full w-full items-center justify-center">
+          <div className="rounded-xl border border-rose-400 bg-rose-500/20 px-6 py-5 text-center text-rose-100">
+            <p className="text-lg font-semibold">Unable to load flow</p>
+            <p className="mt-2 text-sm text-rose-100/80">{state.error ?? "Unknown error"}</p>
+          </div>
+        </div>
+      )
+    }
+
+    if (currentNode.type === "message") {
+      return (
+        <div className="flex h-full w-full items-center justify-center px-6">
+          <div className="max-w-3xl rounded-xl border border-white/20 bg-black/40 px-6 py-6 text-left text-white">
+            <h2 className="text-xl font-semibold">{currentNode.title}</h2>
+            <div
+              className="prose prose-invert mt-4 max-w-none text-base text-white/80"
+              dangerouslySetInnerHTML={{ __html: currentNode.html ?? "Content coming soon." }}
+            />
+          </div>
+        </div>
+      )
+    }
+
+    if (currentNode.type === "quiz") {
+      return (
+        <div className="flex h-full w-full flex-col items-center justify-center gap-6 px-6">
+          <div className="max-w-3xl text-center">
+            <h2 className="text-2xl font-semibold text-white">{currentNode.title}</h2>
+            <p className="mt-2 text-base text-white/80">{currentNode.question}</p>
+          </div>
+          <div className="grid w-full max-w-3xl gap-3">
+            {currentNode.options.map((choice, index) => (
+              <button
+                key={`${choice.label}-${index}`}
+                className="rounded-xl border border-white/30 bg-white/10 px-6 py-4 text-left text-lg text-white transition hover:bg-white/20"
+                onClick={() => handleChoiceSelect(choice, index)}
+              >
+                {choice.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )
+    }
+
+    // video or sim
+    return (
+      <div className="relative flex h-full w-full items-center justify-center">
+        <VideoPlayer
+          key={state.currentNodeId ?? "unknown"}
+          src={resolvedVideoUrl}
+          className="h-full w-full object-cover"
+          showOptions={false}
+          hideControls={false}
+          autoplay
+          startFullscreen={false}
+          trackingConfig={{
+            videoId: `consulting:${state.currentNodeId ?? "unknown"}`,
+            videoUrl: resolvedVideoUrl,
+            streamSelected: "consulting",
+          }}
+        />
+      </div>
+    )
+  }
+
+  const choiceButtons = currentNode && "choices" in currentNode ? currentNode.choices ?? [] : []
+
+  return (
+    <div className="relative flex h-full w-full items-center justify-center text-white">
+      <div className="absolute right-4 top-4 z-[1000000] flex gap-2">
+        <Button variant="secondary" onClick={onClose}>
+          Close
+        </Button>
+      </div>
+
+      <div className="relative z-[1000001] h-full w-full">
+        {renderContent()}
+      </div>
+
+      {timerVisible && (
+        <div className="absolute left-0 right-0 flex w-full justify-center" style={{ bottom: "9.5rem" }}>
+          <div
+            style={{
+              height: "3px",
+              background: "white",
+              borderRadius: "2px",
+              width: `${Math.max(0, timerProgress * 100)}%`,
+              transition: "width 0.05s linear",
+            }}
+          />
+        </div>
+      )}
+
+      {choiceButtons.length > 0 && optionsUnlocked && (
+        <div className="pointer-events-auto fixed left-0 right-0 bottom-0 z-[1000003]" style={{ height: "9.5rem" }}>
+          <div className="flex h-full w-full items-start bg-black/95">
+            {choiceButtons.map((choice, index) => {
+              const key = OPTION_KEY_SEQUENCE[index] ?? OPTION_KEY_SEQUENCE[0]
+              return (
+                <Fragment key={`${choice.label}-${index}`}>
+                  {index > 0 && <div className="w-px bg-white/20" />}
+                  <button
+                    className="flex-1 h-full px-6 py-6 text-xl font-normal tracking-normal md:text-2xl transition-colors flex items-center justify-center text-center bg-transparent text-white hover:bg-white/10"
+                    style={{ border: "none" }}
+                    onClick={() => handleChoiceSelect(choice, index)}
+                  >
+                    <span className="leading-snug">{choice.label ?? `Option ${key}`}</span>
+                  </button>
+                </Fragment>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+type FlowOverlay = {
+  html?: string
+  label?: string
+}
+
+type FlowNode =
+  | {
+      type: "video" | "sim"
+      title: string
+      video?: string
+      overlays?: FlowOverlay[]
+      choices?: FlowChoice[]
+      notes?: string
+    }
+  | {
+      type: "quiz"
+      title: string
+      question: string
+      options: FlowChoice[]
+    }
+  | {
+      type: "message"
+      title: string
+      html?: string
+      choices?: FlowChoice[]
+    }
+
+type FlowDefinition = {
+  id: string
+  title: string
+  start: string
+  nodes: Record<string, FlowNode>
+}
+
 const CONSULTING_MARKET_INTEL_URL = 'https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/Monday%20630%20am.mp4'
 const CONSULTING_INTRO_LABELS: Partial<Record<OptionKey, string>> = {
   A: "How to Play",
@@ -590,6 +941,17 @@ export default function StudyStreamsPage() {
   }, [overlayStream])
 
   useEffect(() => {
+    if (overlayStream === "consulting") {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+      timerStartedRef.current = false
+      setTimerVisible(false)
+      setTimerProgress(1)
+      return
+    }
+
     const timerEligible =
       optionVisibilityDelayRef.current &&
       (overlayStage === "main" ||
@@ -680,14 +1042,13 @@ export default function StudyStreamsPage() {
             pendingMainPlaybackRef.current = false
             selectedOptionRef.current = null
             if (streamId === 'consulting') {
-              setOverlayIntroUrl('https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/ExploreYou%20Intro.mp4')
-              setOverlayPromptUrl('https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/in%20flight%20option%20for%20excited.mp4')
+              setOverlayIntroUrl(null)
+              setOverlayPromptUrl(null)
               setOverlayMidUrl(null)
               setConsultingPromptMode("default")
-              setOverlayStage("intro")
-              overlayIntroPlayingRef.current = true
-              // After prompt, play this specific Airplane Video instead of the default generated clip
-              setOverlayVideoUrl('https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/Airplane%20Video.mp4')
+              setOverlayStage("main")
+              overlayIntroPlayingRef.current = false
+              setOverlayVideoUrl(STUDY_STREAMS_VIDEO_FALLBACK_URL)
             } else {
               setOverlayIntroUrl(null)
               setOverlayPromptUrl(null)
@@ -904,150 +1265,161 @@ export default function StudyStreamsPage() {
 
       {overlayContainer && overlayStream &&
         createPortal(
-          <div className="relative flex h-full w-full items-center justify-center text-white">
-            <div className="absolute right-4 top-4 z-[1000000]">
-              <Button onClick={closeOverlay}>Close</Button>
-            </div>
-            <div className="relative flex h-full w-full items-center justify-center z-[1000001]">
-              <VideoPlayer
-                key={`${overlayStream ?? "unknown"}-${overlayStage}`}
-                src={
-                  overlayStage === "intro" && overlayIntroUrl
-                    ? overlayIntroUrl
-                    : overlayStage === "prompt" && overlayPromptUrl
-                      ? overlayPromptUrl
-                      : overlayStage === "mid" && overlayMidUrl
-                        ? overlayMidUrl
-                        : overlayVideoUrl
-                }
-                className="h-full w-full object-cover"
-                showOptions={false}
-                hideControls={false}
-                autoplay
-                startFullscreen={false}
-                registerApi={(api) => {
-                  overlayPlayerApiRef.current = {
-                    play: api.play,
-                    pause: api.pause,
-                    element: api.element ?? null,
-                  }
-                  overlayVideoElementRef.current = api.element ?? null
-                  if (overlayStage === "main") {
-                    if (pendingMainPlaybackRef.current) {
-                      pendingMainPlaybackRef.current = false
-                      void api.play().catch(() => undefined)
-                    }
-                  }
-                }}
-                trackingConfig={{
-                  videoId:
-                    overlayStage === "intro"
-                      ? `${overlayStream}-intro`
-                      : overlayStage === "prompt"
-                        ? `${overlayStream}-prompt`
-                        : overlayStage === "mid"
-                          ? `${overlayStream}-market-intel`
-                          : overlayStream ?? "",
-                  videoUrl:
+          overlayStream === "consulting" ? (
+            <ConsultingFlowOverlay
+              onClose={closeOverlay}
+              rememberSelection={rememberSelection}
+              navigateWithOption={navigateWithOption}
+              selectionMap={selectionMap}
+              timerVisible={timerVisible}
+              timerProgress={timerProgress}
+            />
+          ) : (
+            <div className="relative flex h-full w-full items-center justify-center text-white">
+              <div className="absolute right-4 top-4 z-[1000000]">
+                <Button onClick={closeOverlay}>Close</Button>
+              </div>
+              <div className="relative flex h-full w-full items-center justify-center z-[1000001]">
+                <VideoPlayer
+                  key={`${overlayStream ?? "unknown"}-${overlayStage}`}
+                  src={
                     overlayStage === "intro" && overlayIntroUrl
                       ? overlayIntroUrl
                       : overlayStage === "prompt" && overlayPromptUrl
                         ? overlayPromptUrl
                         : overlayStage === "mid" && overlayMidUrl
                           ? overlayMidUrl
-                          : overlayVideoUrl,
-                  streamSelected: overlayStream ?? undefined,
-                }}
-                initialPositionSeconds={overlayStage === "main" ? overlayInitialPosition : null}
-                onPlaybackChange={(playing) => {
-                  setOverlayPlaybackActive(playing)
-                }}
-                onTrackedEvent={(record, eventName) => {
-                  if (record) {
-                    overlayLastRecordRef.current = record
+                          : overlayVideoUrl
                   }
-                  if (overlayStage === "intro" && eventName === 'video_completed') {
-                    if (overlayPromptUrl) {
-                      setConsultingPromptMode("default")
-                      setOverlayStage("prompt")
-                      overlayIntroPlayingRef.current = true
-                    } else {
-                      transitionToMainStage()
+                  className="h-full w-full object-cover"
+                  showOptions={false}
+                  hideControls={false}
+                  autoplay
+                  startFullscreen={false}
+                  registerApi={(api) => {
+                    overlayPlayerApiRef.current = {
+                      play: api.play,
+                      pause: api.pause,
+                      element: api.element ?? null,
                     }
-                    return
-                  }
-                  if (overlayStage === "prompt" && eventName === 'video_completed') {
-                    transitionToMainStage()
-                    return
-                  }
-                  if (overlayStage === "mid" && eventName === 'video_completed') {
-                    transitionToMainStage()
-                    return
-                  }
-                  if (overlayStage === "main" && eventName === 'video_completed') {
-                    if (selectedOptionRef.current) {
-                      navigateWithOption(selectedOptionRef.current, selectedOptionLabelRef.current)
-                    } else {
-                      const fallbackStream = overlayStream
-                      const storedSelection = fallbackStream ? selectionMap[fallbackStream] : null
-                      if (fallbackStream && storedSelection?.key) {
-                        navigateWithOption(storedSelection.key, storedSelection.label)
-                        return
+                    overlayVideoElementRef.current = api.element ?? null
+                    if (overlayStage === "main") {
+                      if (pendingMainPlaybackRef.current) {
+                        pendingMainPlaybackRef.current = false
+                        void api.play().catch(() => undefined)
                       }
-                      navigatingRef.current = true
-                      closeOverlay()
-                      if (fallbackStream) {
-                        router.push(`/career-simulations/${fallbackStream}`)
+                    }
+                  }}
+                  trackingConfig={{
+                    videoId:
+                      overlayStage === "intro"
+                        ? `${overlayStream}-intro`
+                        : overlayStage === "prompt"
+                          ? `${overlayStream}-prompt`
+                          : overlayStage === "mid"
+                            ? `${overlayStream}-market-intel`
+                            : overlayStream ?? "",
+                    videoUrl:
+                      overlayStage === "intro" && overlayIntroUrl
+                        ? overlayIntroUrl
+                        : overlayStage === "prompt" && overlayPromptUrl
+                          ? overlayPromptUrl
+                          : overlayStage === "mid" && overlayMidUrl
+                            ? overlayMidUrl
+                            : overlayVideoUrl,
+                    streamSelected: overlayStream ?? undefined,
+                  }}
+                  initialPositionSeconds={overlayStage === "main" ? overlayInitialPosition : null}
+                  onPlaybackChange={(playing) => {
+                    setOverlayPlaybackActive(playing)
+                  }}
+                  onTrackedEvent={(record, eventName) => {
+                    if (record) {
+                      overlayLastRecordRef.current = record
+                    }
+                    if (overlayStage === "intro" && eventName === 'video_completed') {
+                      if (overlayPromptUrl) {
+                        setConsultingPromptMode("default")
+                        setOverlayStage("prompt")
+                        overlayIntroPlayingRef.current = true
                       } else {
-                        router.push("/career-streams")
+                        transitionToMainStage()
+                      }
+                      return
+                    }
+                    if (overlayStage === "prompt" && eventName === 'video_completed') {
+                      transitionToMainStage()
+                      return
+                    }
+                    if (overlayStage === "mid" && eventName === 'video_completed') {
+                      transitionToMainStage()
+                      return
+                    }
+                    if (overlayStage === "main" && eventName === 'video_completed') {
+                      if (selectedOptionRef.current) {
+                        navigateWithOption(selectedOptionRef.current, selectedOptionLabelRef.current)
+                      } else {
+                        const fallbackStream = overlayStream
+                        const storedSelection = fallbackStream ? selectionMap[fallbackStream] : null
+                        if (fallbackStream && storedSelection?.key) {
+                          navigateWithOption(storedSelection.key, storedSelection.label)
+                          return
+                        }
+                        navigatingRef.current = true
+                        closeOverlay()
+                        if (fallbackStream) {
+                          router.push(`/career-simulations/${fallbackStream}`)
+                        } else {
+                          router.push("/career-streams")
+                        }
                       }
                     }
-                  }
-                }}
-              />
-            </div>
-
-            {timerVisible && (
-              <div className="absolute left-0 right-0 flex w-full justify-center" style={{ bottom: "9.5rem" }}>
-                <div
-                  style={{
-                    height: "3px",
-                    background: "white",
-                    borderRadius: "2px",
-                    width: `${Math.max(0, timerProgress * 100)}%`,
-                    transition: "width 0.05s linear",
                   }}
                 />
               </div>
-            )}
 
-            {shouldShowOptionBar && optionConfigs.length > 0 && (
-            <div className="pointer-events-auto fixed left-0 right-0 bottom-0 z-[1000003]" style={{ height: "9.5rem" }}>
-              <div className="flex h-full w-full items-start bg-black/95">
-                {optionConfigs.map((config, index) => {
-                  const isSelected = activeOptionKey === config.key
-                  return (
-                    <Fragment key={config.key}>
-                      {index > 0 && <div className="w-px bg-white/20" />}
-                      <button
-                        aria-label={config.label}
-                        className={`flex-1 h-full px-6 py-6 text-xl font-normal tracking-normal md:text-2xl transition-colors flex items-center justify-center text-center ${
-                          isSelected
-                            ? "bg-white text-black hover:bg-white focus:bg-white"
-                            : "bg-transparent text-white hover:bg-white/10"
-                        }`}
-                        style={{ border: "none" }}
-                        onClick={() => handleOptionSelection(config.key)}
-                      >
-                        <span className="leading-snug">{config.label}</span>
-                      </button>
-                    </Fragment>
-                  )
-                })}
+              {timerVisible && (
+                <div className="absolute left-0 right-0 flex w-full justify-center" style={{ bottom: "9.5rem" }}>
+                  <div
+                    style={{
+                      height: "3px",
+                      background: "white",
+                      borderRadius: "2px",
+                      width: `${Math.max(0, timerProgress * 100)}%`,
+                      transition: "width 0.05s linear",
+                    }}
+                  />
+                </div>
+              )}
+
+              {shouldShowOptionBar && optionConfigs.length > 0 && (
+              <div className="pointer-events-auto fixed left-0 right-0 bottom-0 z-[1000003]" style={{ height: "9.5rem" }}>
+                <div className="flex h-full w-full items-start bg-black/95">
+                  {optionConfigs.map((config, index) => {
+                    const isSelected = activeOptionKey === config.key
+                    return (
+                      <Fragment key={config.key}>
+                        {index > 0 && <div className="w-px bg-white/20" />}
+                        <button
+                          aria-label={config.label}
+                          className={`flex-1 h-full px-6 py-6 text-xl font-normal tracking-normal md:text-2xl transition-colors flex items-center justify-center text-center ${
+                            isSelected
+                              ? "bg-white text-black hover:bg-white focus:bg-white"
+                              : "bg-transparent text-white hover:bg-white/10"
+                          }`}
+                          style={{ border: "none" }}
+                          onClick={() => handleOptionSelection(config.key)}
+                        >
+                          <span className="leading-snug">{config.label}</span>
+                        </button>
+                      </Fragment>
+                    )
+                  })}
+                </div>
               </div>
+              )}
             </div>
-            )}
-          </div>,
+          ),
           overlayContainer
         )}
 
