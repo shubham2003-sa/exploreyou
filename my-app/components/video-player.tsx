@@ -83,17 +83,26 @@ export default function VideoPlayer({
   const containerRef = useRef<HTMLDivElement>(null)
 
   const [isPlaying, setIsPlaying] = useState(false)
-  const [isFullscreen, setIsFullscreen] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [hasError, setHasError] = useState(false)
+  const [internalMuted, setInternalMuted] = useState<boolean>(() => {
+    if (forceMuted) return true
+    if (typeof isMuted === "boolean") return isMuted
+    return false
+  })
 
   const hasStartedRef = useRef(false)
   const trackingRef = useRef<VideoTrackingConfig | undefined>(trackingConfig)
   const trackedCallbackRef = useRef(onTrackedEvent)
   const initialSeekAppliedRef = useRef(false)
+  const isMutedControlledRef = useRef(typeof isMuted === "boolean")
 
-  const effectiveMuted = useMemo(() => forceMuted || !!isMuted, [forceMuted, isMuted])
+  const effectiveMuted = useMemo(() => {
+    if (forceMuted) return true
+    if (typeof isMuted === "boolean") return isMuted
+    return internalMuted
+  }, [forceMuted, isMuted, internalMuted])
 
   // Store callback in ref to avoid re-registering events
   const onPlaybackChangeRef = useRef(onPlaybackChange)
@@ -115,6 +124,19 @@ export default function VideoPlayer({
     onMuteChangeRef.current = onMuteChange
     setIsMutedRef.current = setIsMuted
   }, [onMuteChange, setIsMuted])
+
+  useEffect(() => {
+    isMutedControlledRef.current = typeof isMuted === "boolean"
+    if (typeof isMuted === "boolean") {
+      setInternalMuted(isMuted)
+    }
+  }, [isMuted])
+
+  useEffect(() => {
+    if (forceMuted) {
+      setInternalMuted(true)
+    }
+  }, [forceMuted])
 
   const emitMute = useCallback((muted: boolean) => {
     onMuteChangeRef.current?.(muted)
@@ -359,11 +381,10 @@ export default function VideoPlayer({
   }, [autoplay, effectiveMuted])
   
   useEffect(() => {
-    if (startFullscreen) {
-      const container = containerRef.current
-      if (container?.requestFullscreen) {
-        container.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => setIsFullscreen(false))
-      }
+    if (!startFullscreen) return
+    const container = containerRef.current
+    if (container?.requestFullscreen) {
+      container.requestFullscreen().catch(() => undefined)
     }
   }, [startFullscreen])
 
@@ -485,6 +506,9 @@ export default function VideoPlayer({
       togglePlay: () => togglePlay(),
       setMuted: (muted: boolean) => {
         video.muted = muted
+        if (!isMutedControlledRef.current) {
+          setInternalMuted(muted)
+        }
         emitMute(muted)
       },
       get element() {
@@ -507,27 +531,15 @@ export default function VideoPlayer({
     setCurrentTime(nextTime)
   }
 
-  const toggleFullscreen = () => {
-    const container = containerRef.current
-    if (!container) return
-
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => setIsFullscreen(false))
-      setIsFullscreen(false)
-      return
-    }
-
-    if (container.requestFullscreen) {
-      container.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => setIsFullscreen(false))
-    }
-  }
-
   const handleMuteToggle = () => {
     if (forceMuted) return
     const video = videoRef.current
     const nextMuted = !effectiveMuted
     if (video) {
       video.muted = nextMuted
+    }
+    if (!isMutedControlledRef.current) {
+      setInternalMuted(nextMuted)
     }
     emitMute(nextMuted)
   }
@@ -592,14 +604,9 @@ export default function VideoPlayer({
               </Button>
               <span className="text-sm">{formatTime(currentTime)} / {formatTime(duration)}</span>
             </div>
-            <div className="flex items-center gap-3">
-              <Button type="button" variant="ghost" className="rounded-full bg-white/10 text-white" onClick={handleMuteToggle}>
-                {effectiveMuted ? "Unmute" : "Mute"}
-              </Button>
-              <Button type="button" variant="ghost" className="rounded-full bg-white/10 text-white" onClick={toggleFullscreen}>
-                {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-              </Button>
-            </div>
+            <Button type="button" variant="ghost" className="rounded-full bg-white/10 text-white" onClick={handleMuteToggle}>
+              {effectiveMuted ? "Unmute" : "Mute"}
+            </Button>
           </div>
           {renderOptions && (
             <div className="pointer-events-auto mt-4 grid grid-cols-2 gap-2">

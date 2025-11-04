@@ -1,5 +1,6 @@
 "use client"
 
+import { CareerFlowRunner } from "@/components/career-flow-runner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -232,6 +233,12 @@ export default function TaskSimulationPage() {
       </section>
 
       <main className="mx-auto w-full max-w-6xl space-y-8 px-6 py-10">
+        {subject === "consulting" ? (
+          <CareerFlowRunner
+            subject={subject}
+            className="rounded-3xl border border-slate-200 bg-white shadow-sm"
+          />
+        ) : null}
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.8fr),minmax(260px,1fr)]">
           <div className="space-y-6">
             {displayOptionLabel ? (
