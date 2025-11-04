@@ -278,30 +278,33 @@ export default function TaskSimulationPage() {
             ))}
           </div>
 
-          <aside className="space-y-6">
-            <div className="rounded-3xl border border-slate-200 bg-white px-6 py-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-900">Performance Scores</h3>
-              <div className="mt-4 mb-6 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                <span className="text-sm font-medium text-slate-600">{scenario.timerLabel}</span>
-                <span className="font-mono text-lg text-slate-900">{formatRemaining(timeLeft)}</span>
+          {/* Disabled persistent performance score panel per request */}
+          {false && (
+            <aside className="space-y-6">
+              <div className="rounded-3xl border border-slate-200 bg-white px-6 py-6 shadow-sm">
+                <h3 className="text-lg font-semibold text-slate-900">Performance Scores</h3>
+                <div className="mt-4 mb-6 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <span className="text-sm font-medium text-slate-600">{scenario.timerLabel}</span>
+                  <span className="font-mono text-lg text-slate-900">{formatRemaining(timeLeft)}</span>
+                </div>
+                <div className="space-y-3">
+                  {SCORE_LABELS.map((label) => (
+                    <div key={label} className="space-y-1">
+                      <Label htmlFor={label} className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                        {label}
+                      </Label>
+                      <Input
+                        id={label}
+                        value={scoreValues[label]}
+                        readOnly
+                        className="h-11 rounded-lg border-slate-200 bg-slate-50 text-base text-slate-900"
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="space-y-3">
-                {SCORE_LABELS.map((label) => (
-                  <div key={label} className="space-y-1">
-                    <Label htmlFor={label} className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                      {label}
-                    </Label>
-                    <Input
-                      id={label}
-                      value={scoreValues[label]}
-                      readOnly
-                      className="h-11 rounded-lg border-slate-200 bg-slate-50 text-base text-slate-900"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </aside>
+            </aside>
+          )}
         </div>
 
         <div className="flex flex-col items-center gap-3 pt-2">
