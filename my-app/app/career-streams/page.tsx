@@ -14,6 +14,7 @@ import { resolveVideoUrl } from "@/lib/video-url"
 import { recordVideoProgressEvent, fetchLatestProgressForVideo, fetchVideoProgress, type VideoProgressRecord } from "@/lib/video-progress"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { consultingFlowSegment } from "@/config/static-consulting-flow"
 
 type Stream = {
   id: string
@@ -44,6 +45,7 @@ type FlowChoice = {
 
 type ConsultingFlowOverlayProps = {
   onClose: () => void
+  onFlowFailed: () => void
   rememberSelection: (streamId: string, option: OptionKey, optionLabel?: string) => void
   navigateWithOption: (option: OptionKey, optionLabel?: string | null) => void
   selectionMap: Record<string, SelectionSnapshot>
@@ -67,6 +69,7 @@ const isPlaceholderValue = (value?: string | null) => {
 
 function ConsultingFlowOverlay({
   onClose,
+  onFlowFailed,
   rememberSelection,
   navigateWithOption,
   selectionMap,
@@ -101,14 +104,23 @@ function ConsultingFlowOverlay({
           setState({ flow: data, loading: false, error: null, currentNodeId: data.start ?? null })
         }
       } catch (error) {
-        if (!cancelled) {
+        if (cancelled) return
+        if (consultingFlowSegment) {
+          historyRef.current = []
           setState({
-            flow: null,
+            flow: consultingFlowSegment as unknown as FlowDefinition,
             loading: false,
-            error: error instanceof Error ? error.message : "Unable to load flow",
-            currentNodeId: null,
+            error: null,
+            currentNodeId: consultingFlowSegment.start ?? null,
           })
+          return
         }
+        setState({
+          flow: null,
+          loading: false,
+          error: error instanceof Error ? error.message : "Unable to load flow",
+          currentNodeId: null,
+        })
       }
     }
 
@@ -122,6 +134,12 @@ function ConsultingFlowOverlay({
       }
     }
   }, [])
+
+  useEffect(() => {
+    if (state.error) {
+      onFlowFailed()
+    }
+  }, [state.error, onFlowFailed])
 
   const currentNode = useMemo(() => {
     if (!state.flow || !state.currentNodeId) return null
@@ -191,12 +209,17 @@ function ConsultingFlowOverlay({
       onClose()
       return
     }
+    const flow = state.flow
+    if (!flow || !flow.nodes[nodeId]) {
+      onFlowFailed()
+      return
+    }
     historyRef.current = state.currentNodeId ? [...historyRef.current, state.currentNodeId] : []
     setState((prev) => ({
       ...prev,
       currentNodeId: nodeId,
     }))
-  }, [onClose, state.currentNodeId])
+  }, [onClose, state.currentNodeId, state.flow, onFlowFailed])
 
   const handleChoiceSelect = useCallback((choice: FlowChoice, index: number) => {
     const optionKey = OPTION_KEY_SEQUENCE[index] ?? OPTION_KEY_SEQUENCE[0]
@@ -503,6 +526,7 @@ export default function StudyStreamsPage() {
   const [overlayPlaybackActive, setOverlayPlaybackActive] = useState(false)
   const optionsUnlockTimerRef = useRef<number | null>(null)
   const optionVisibilityDelayRef = useRef(false)
+  const [consultingFlowActive, setConsultingFlowActive] = useState(false)
 
   useEffect(() => {
     overlayIntroPlayingRef.current = overlayIntroPlaying
@@ -621,6 +645,7 @@ export default function StudyStreamsPage() {
       optionsUnlockTimerRef.current = null
     }
     setOptionsUnlocked(false)
+    setConsultingFlowActive(false)
   }, [overlayContainer, resetTimer])
 
   const transitionToMainStage = useCallback(() => {
@@ -1042,14 +1067,17 @@ export default function StudyStreamsPage() {
             pendingMainPlaybackRef.current = false
             selectedOptionRef.current = null
             if (streamId === 'consulting') {
-              setOverlayIntroUrl(null)
-              setOverlayPromptUrl(null)
+              setConsultingFlowActive(true)
+              setOverlayIntroUrl('https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/ExploreYou%20Intro.mp4')
+              setOverlayPromptUrl('https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/in%20flight%20option%20for%20excited.mp4')
               setOverlayMidUrl(null)
               setConsultingPromptMode("default")
-              setOverlayStage("main")
-              overlayIntroPlayingRef.current = false
-              setOverlayVideoUrl(STUDY_STREAMS_VIDEO_FALLBACK_URL)
+              setOverlayStage("intro")
+              overlayIntroPlayingRef.current = true
+              // After prompt, play this specific Airplane Video instead of the default generated clip
+              setOverlayVideoUrl('https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/Airplane%20Video.mp4')
             } else {
+              setConsultingFlowActive(false)
               setOverlayIntroUrl(null)
               setOverlayPromptUrl(null)
               setOverlayMidUrl(null)
@@ -1265,7 +1293,7 @@ export default function StudyStreamsPage() {
 
       {overlayContainer && overlayStream &&
         createPortal(
-          overlayStream === "consulting" ? (
+          overlayStream === "consulting" && consultingFlowActive ? (
             <ConsultingFlowOverlay
               onClose={closeOverlay}
               rememberSelection={rememberSelection}
@@ -1273,6 +1301,9 @@ export default function StudyStreamsPage() {
               selectionMap={selectionMap}
               timerVisible={timerVisible}
               timerProgress={timerProgress}
+              onFlowFailed={() => {
+                setConsultingFlowActive(false)
+              }}
             />
           ) : (
             <div className="relative flex h-full w-full items-center justify-center text-white">
