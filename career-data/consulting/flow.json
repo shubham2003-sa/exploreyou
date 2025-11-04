@@ -11,7 +11,8 @@
         { "html": "PASTE_OVERLAY_HTML_AL1" }
       ],
       "choices": [
-        { "label": "Continue", "next": "F1" }
+        { "label": "How to Play", "next": "AZ1" },
+        { "label": "Start Simulationn", "next": "F1" }
       ]
     },
     "F1": {
