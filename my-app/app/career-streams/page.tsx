@@ -650,17 +650,6 @@ export default function StudyStreamsPage() {
       closeOverlay()
     }
 
-    if (streamId === "consulting") {
-      setPendingStream(null)
-      setIsLoading(false)
-      setTimerVisible(false)
-      setTimerProgress(1)
-      timerStartedRef.current = false
-      navigatingRef.current = true
-      router.push(`/career-simulations/${streamId}`)
-      return
-    }
-
     setPendingStream(streamId)
     setIsLoading(true)
     setTimerVisible(false)
