@@ -20,9 +20,9 @@ export const consultingFlowSegment = {
       ]
     },
     O1: {
-      type: "message",
+      type: "sim",
       title: "Market Intelligence Task",
-      html: "/career-overlays/market-intelligence/index.html",
+      overlays: [{ html: "/career-overlays/market-intelligence/index.html" }],
       choices: []
     }
   }
