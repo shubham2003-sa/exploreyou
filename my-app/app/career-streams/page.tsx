@@ -83,6 +83,7 @@ function ConsultingFlowOverlay({
     currentNodeId: null,
   })
   const [resolvedVideoUrl, setResolvedVideoUrl] = useState<string>(STUDY_STREAMS_VIDEO_FALLBACK_URL)
+  const [videoAvailable, setVideoAvailable] = useState(false)
   const [optionsUnlocked, setOptionsUnlocked] = useState(false)
   const [pendingChoice, setPendingChoice] = useState<{ key: OptionKey; label: string } | null>(null)
   const unlockTimerRef = useRef<number | null>(null)
@@ -153,12 +154,14 @@ function ConsultingFlowOverlay({
   useEffect(() => {
     if (!currentNode || (currentNode.type !== "video" && currentNode.type !== "sim")) {
       setResolvedVideoUrl(STUDY_STREAMS_VIDEO_FALLBACK_URL)
+      setVideoAvailable(false)
       return
     }
 
     const video = currentNode.video
     if (!video || isPlaceholderValue(video)) {
       setResolvedVideoUrl(STUDY_STREAMS_VIDEO_FALLBACK_URL)
+      setVideoAvailable(false)
       return
     }
 
@@ -167,11 +170,14 @@ function ConsultingFlowOverlay({
       try {
         const resolved = await resolveVideoUrl(video, STUDY_STREAMS_VIDEO_FALLBACK_URL)
         if (!cancelled) {
+          const available = Boolean(resolved)
           setResolvedVideoUrl(resolved ?? STUDY_STREAMS_VIDEO_FALLBACK_URL)
+          setVideoAvailable(available)
         }
       } catch {
         if (!cancelled) {
-          onFlowFailed()
+          setResolvedVideoUrl(STUDY_STREAMS_VIDEO_FALLBACK_URL)
+          setVideoAvailable(false)
         }
       }
     }
@@ -180,7 +186,7 @@ function ConsultingFlowOverlay({
     return () => {
       cancelled = true
     }
-  }, [currentNode, onFlowFailed])
+  }, [currentNode])
 
   const hasInteractiveChoices = useMemo(() => {
     if (!currentNode || !("choices" in currentNode)) return false
@@ -221,8 +227,13 @@ function ConsultingFlowOverlay({
 
     autoNextTargetRef.current = null
     autoAdvanceTriggeredRef.current = false
-    setOptionsUnlocked(false)
-  }, [currentNode, hasInteractiveChoices])
+    if (!videoAvailable) {
+      setPlaybackStarted(true)
+      setOptionsUnlocked(true)
+    } else {
+      setOptionsUnlocked(false)
+    }
+  }, [currentNode, hasInteractiveChoices, videoAvailable])
 
   useEffect(() => {
     if (!currentNode || (currentNode.type !== "video" && currentNode.type !== "sim")) {
@@ -369,39 +380,45 @@ function ConsultingFlowOverlay({
     // video or sim
     return (
       <div className="relative flex h-full w-full items-center justify-center">
-        <VideoPlayer
-          key={state.currentNodeId ?? "unknown"}
-          src={resolvedVideoUrl}
-          className="h-full w-full object-cover"
-          showOptions={false}
-          hideControls={false}
-          autoplay
-          startFullscreen={false}
-          trackingConfig={{
-            videoId: `consulting:${state.currentNodeId ?? "unknown"}`,
-            videoUrl: resolvedVideoUrl,
-            streamSelected: "consulting",
-          }}
-          onPlaybackChange={(playing) => {
-            if (playing) {
-              setPlaybackStarted(true)
-            }
-          }}
-          onTrackedEvent={(_, eventName) => {
-            if (eventName === "video_completed" && autoNextTargetRef.current && !autoAdvanceTriggeredRef.current) {
-              autoAdvanceTriggeredRef.current = true
-              const target = autoNextTargetRef.current
-              if (target) {
-                const flow = state.flow
-                if (flow?.nodes[target]) {
-                  navigateToNode(target)
-                } else {
-                  onFlowFailed()
+        {videoAvailable ? (
+          <VideoPlayer
+            key={state.currentNodeId ?? "unknown"}
+            src={resolvedVideoUrl}
+            className="h-full w-full object-cover"
+            showOptions={false}
+            hideControls={false}
+            autoplay
+            startFullscreen={false}
+            trackingConfig={{
+              videoId: `consulting:${state.currentNodeId ?? "unknown"}`,
+              videoUrl: resolvedVideoUrl,
+              streamSelected: "consulting",
+            }}
+            onPlaybackChange={(playing) => {
+              if (playing) {
+                setPlaybackStarted(true)
+              }
+            }}
+            onTrackedEvent={(_, eventName) => {
+              if (eventName === "video_completed" && autoNextTargetRef.current && !autoAdvanceTriggeredRef.current) {
+                autoAdvanceTriggeredRef.current = true
+                const target = autoNextTargetRef.current
+                if (target) {
+                  const flow = state.flow
+                  if (flow?.nodes[target]) {
+                    navigateToNode(target)
+                  } else {
+                    onFlowFailed()
+                  }
                 }
               }
-            }
-          }}
-        />
+            }}
+          />
+        ) : (
+          <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 px-6 py-4 text-center text-amber-700">
+            Video unavailable for this node. Showing available content below.
+          </div>
+        )}
       </div>
     )
   }
