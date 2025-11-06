@@ -1148,19 +1148,17 @@ export default function StudyStreamsPage() {
           .finally(() => {
             setOverlayContainer(div)
             setOverlayStream(streamId)
-            // Consulting: play an extra intro video first, then fall back to the resolved stream video
             pendingMainPlaybackRef.current = false
             selectedOptionRef.current = null
-            if (streamId === 'consulting') {
+            if (streamId === "consulting") {
               setConsultingFlowActive(true)
-              setOverlayIntroUrl('https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/ExploreYou%20Intro.mp4')
-              setOverlayPromptUrl('https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/in%20flight%20option%20for%20excited.mp4')
+              setOverlayIntroUrl(null)
+              setOverlayPromptUrl(null)
               setOverlayMidUrl(null)
               setConsultingPromptMode("default")
-              setOverlayStage("intro")
-              overlayIntroPlayingRef.current = true
-              // After prompt, play this specific Airplane Video instead of the default generated clip
-              setOverlayVideoUrl('https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/Airplane%20Video.mp4')
+              setOverlayStage("main")
+              overlayIntroPlayingRef.current = false
+              setOverlayVideoUrl(STUDY_STREAMS_VIDEO_FALLBACK_URL)
             } else {
               setConsultingFlowActive(false)
               setOverlayIntroUrl(null)
