@@ -352,29 +352,19 @@ function ConsultingFlowOverlay({
     if (looksLikeHtml) {
       return (
         <div
-          className="h-[85vh] w-full overflow-y-auto rounded-xl border border-white/10 bg-black/60 px-6 py-5 text-left text-sm leading-relaxed text-white"
+          className="h-full w-full overflow-y-auto rounded-2xl border border-white/10 bg-black/60 px-6 py-5 text-left text-sm leading-relaxed text-white"
           dangerouslySetInnerHTML={{ __html: trimmed }}
         />
       )
     }
 
     return (
-      <div className="flex w-full flex-col gap-3">
-        <iframe
-          src={trimmed}
-          title="interactive-content"
-          className="h-[85vh] w-full rounded-xl border border-white/10 bg-black/80"
-          allowFullScreen
-        />
-        <a
-          href={trimmed}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="inline-flex items-center justify-center gap-2 self-start rounded-lg border border-white/20 px-4 py-2 text-sm font-medium text-white/90 transition hover:bg-white/10"
-        >
-          Open in new tab
-        </a>
-      </div>
+      <iframe
+        src={trimmed}
+        title="interactive-content"
+        className="h-full w-full rounded-2xl border border-white/10 bg-black/80"
+        allowFullScreen
+      />
     )
   }
 
@@ -489,7 +479,7 @@ function ConsultingFlowOverlay({
 
     return (
       <div className="relative flex h-full w-full items-center justify-center px-4">
-        <div className="flex h-full w-full max-w-6xl flex-col items-center gap-6">
+        <div className="flex h-full w-full flex-col gap-6">
           {showVideoPlayer ? (
             <div className="w-full overflow-hidden rounded-2xl border border-white/10 bg-black/60 shadow-lg">
               <VideoPlayer
@@ -533,13 +523,14 @@ function ConsultingFlowOverlay({
               {currentNodeOverlays.map((overlay, index) => (
                 <div
                   key={overlay.label ?? overlay.html ?? `${state.currentNodeId}-overlay-${index}`}
-                  className="space-y-3 text-left text-white"
-                  style={{ minHeight: "85vh" }}
+                  className="flex h-full flex-1 flex-col space-y-3 text-left text-white"
                 >
                   {overlay.label ? (
                     <p className="text-sm font-semibold uppercase tracking-widest text-white/70">{overlay.label}</p>
                   ) : null}
-                  {renderOverlayHtml(overlay.html)}
+                  <div className="flex-1">
+                    {renderOverlayHtml(overlay.html)}
+                  </div>
                 </div>
               ))}
             </div>
