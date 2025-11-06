@@ -465,9 +465,9 @@ function ConsultingFlowOverlay({
             />
           </div>
         ) : null}
-        {activeNode.overlays && activeNode.overlays.length > 0 ? (
+        {currentNode.overlays && currentNode.overlays.length > 0 ? (
           <div className="space-y-3">
-            {activeNode.overlays.map((overlay, index) => (
+            {currentNode.overlays.map((overlay, index) => (
               <div key={overlay.label ?? overlay.html ?? index} className="space-y-2">
                 {overlay.label ? (
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{overlay.label}</p>
