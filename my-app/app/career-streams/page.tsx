@@ -89,6 +89,7 @@ function ConsultingFlowOverlay({
   const historyRef = useRef<string[]>([])
   const autoNextTargetRef = useRef<string | null>(null)
   const autoAdvanceTriggeredRef = useRef(false)
+  const [playbackStarted, setPlaybackStarted] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -181,22 +182,65 @@ function ConsultingFlowOverlay({
     }
   }, [currentNode])
 
-  // Unlock options after delay
+  const hasInteractiveChoices = useMemo(() => {
+    if (!currentNode || !("choices" in currentNode)) return false
+    return Array.isArray(currentNode.choices) && currentNode.choices.length > 0
+  }, [currentNode])
+
   useEffect(() => {
+    setPlaybackStarted(false)
     if (unlockTimerRef.current) {
       window.clearTimeout(unlockTimerRef.current)
       unlockTimerRef.current = null
     }
 
-    if (currentNode && "choices" in currentNode && currentNode.choices && currentNode.choices.length > 0) {
+    if (!currentNode) {
+      autoNextTargetRef.current = null
+      autoAdvanceTriggeredRef.current = false
       setOptionsUnlocked(false)
-      unlockTimerRef.current = window.setTimeout(() => {
-        setOptionsUnlocked(true)
-        unlockTimerRef.current = null
-      }, 3000)
-    } else {
-      setOptionsUnlocked(true)
+      return
     }
+
+    if (currentNode.type === "message" || currentNode.type === "quiz") {
+      autoNextTargetRef.current = null
+      autoAdvanceTriggeredRef.current = false
+      setOptionsUnlocked(true)
+      return
+    }
+
+    if (!hasInteractiveChoices) {
+      if ("autoNext" in currentNode && currentNode.autoNext) {
+        autoNextTargetRef.current = currentNode.autoNext
+      } else {
+        autoNextTargetRef.current = null
+      }
+      autoAdvanceTriggeredRef.current = false
+      setOptionsUnlocked(true)
+      return
+    }
+
+    autoNextTargetRef.current = null
+    autoAdvanceTriggeredRef.current = false
+    setOptionsUnlocked(false)
+  }, [currentNode, hasInteractiveChoices])
+
+  useEffect(() => {
+    if (!currentNode || (currentNode.type !== "video" && currentNode.type !== "sim")) {
+      return
+    }
+    if (!hasInteractiveChoices) {
+      return
+    }
+    if (!playbackStarted) {
+      return
+    }
+    if (unlockTimerRef.current) {
+      return
+    }
+    unlockTimerRef.current = window.setTimeout(() => {
+      setOptionsUnlocked(true)
+      unlockTimerRef.current = null
+    }, 3000)
 
     return () => {
       if (unlockTimerRef.current) {
@@ -204,7 +248,7 @@ function ConsultingFlowOverlay({
         unlockTimerRef.current = null
       }
     }
-  }, [currentNode])
+  }, [currentNode, hasInteractiveChoices, playbackStarted])
 
   const navigateToNode = useCallback((nodeId: string | null) => {
     if (!nodeId) {
@@ -337,6 +381,11 @@ function ConsultingFlowOverlay({
             videoId: `consulting:${state.currentNodeId ?? "unknown"}`,
             videoUrl: resolvedVideoUrl,
             streamSelected: "consulting",
+          }}
+          onPlaybackChange={(playing) => {
+            if (playing) {
+              setPlaybackStarted(true)
+            }
           }}
           onTrackedEvent={(_, eventName) => {
             if (eventName === "video_completed" && autoNextTargetRef.current && !autoAdvanceTriggeredRef.current) {

@@ -18,7 +18,7 @@ export const consultingFlowSegment = {
           "next": "AZ1"
         },
         {
-          "label": "Start Simulationn",
+          "label": "Start Simulation",
           "next": "F1"
         }
       ]
