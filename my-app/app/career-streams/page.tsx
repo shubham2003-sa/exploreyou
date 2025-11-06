@@ -682,8 +682,6 @@ export default function StudyStreamsPage() {
     }
     setOptionsUnlocked(false)
     setConsultingFlowActive(false)
-    autoNextTargetRef.current = null
-    autoAdvanceTriggeredRef.current = false
   }, [overlayContainer, resetTimer])
 
   const transitionToMainStage = useCallback(() => {
