@@ -22,7 +22,7 @@ export const consultingFlowSegment = {
     O1: {
       type: "message",
       title: "Market Intelligence Task",
-      html: "https://marketintelligenceinflight.netlify.app/",
+      html: "/career-overlays/market-intelligence/index.html",
       choices: []
     }
   }
