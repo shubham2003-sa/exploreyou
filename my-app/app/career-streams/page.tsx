@@ -382,6 +382,9 @@ function ConsultingFlowOverlay({
     if (currentNode.type === "message") {
       return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-6 px-6">
+          <div className="text-xs font-medium uppercase tracking-wide text-white/70">
+            Node: <span className="font-semibold text-white/90">{state.currentNodeId}</span>
+          </div>
           <div className="max-w-3xl space-y-4 rounded-xl border border-white/20 bg-black/40 px-6 py-6 text-left text-white">
             <h2 className="text-xl font-semibold">{currentNode.title}</h2>
             {renderOverlayHtml(currentNode.html)}
@@ -415,7 +418,9 @@ function ConsultingFlowOverlay({
     // video or sim
     return (
       <div className="space-y-4">
-        {nodeBadge}
+        <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          Node: <span className="font-semibold text-slate-500">{state.currentNodeId}</span>
+        </div>
         <div className="flex flex-col gap-1">
           <h3 className="text-lg font-semibold text-slate-900">{currentNode.title}</h3>
           {currentNode.type === "sim" ? (
