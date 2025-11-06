@@ -149,6 +149,24 @@ function ConsultingFlowOverlay({
     return state.flow.nodes[state.currentNodeId] ?? null
   }, [state.flow, state.currentNodeId])
 
+  const currentNodeOverlays = useMemo<FlowOverlay[]>(() => {
+    if (!currentNode) return []
+    if (currentNode.type === "video" || currentNode.type === "sim") {
+      return currentNode.overlays ?? []
+    }
+    return []
+  }, [currentNode])
+
+  const hasRenderableOverlay = useMemo(() => {
+    return currentNodeOverlays.some((overlay) => Boolean(overlay?.html) && !isPlaceholderValue(overlay.html))
+  }, [currentNodeOverlays])
+
+  const hasPlayableVideo = useMemo(() => {
+    if (!currentNode) return false
+    if (currentNode.type !== "video" && currentNode.type !== "sim") return false
+    return Boolean(currentNode.video && !isPlaceholderValue(currentNode.video))
+  }, [currentNode])
+
   // Resolve video URL when node changes
   useEffect(() => {
     if (!currentNode || (currentNode.type !== "video" && currentNode.type !== "sim")) {
@@ -225,6 +243,14 @@ function ConsultingFlowOverlay({
   }, [currentNode, hasInteractiveChoices])
 
   useEffect(() => {
+    if (!currentNode) return
+    if (currentNode.type !== "video" && currentNode.type !== "sim") return
+    if (hasPlayableVideo) return
+    if (!hasRenderableOverlay) return
+    setPlaybackStarted(true)
+  }, [currentNode, hasPlayableVideo, hasRenderableOverlay])
+
+  useEffect(() => {
     if (!currentNode || (currentNode.type !== "video" && currentNode.type !== "sim")) {
       return
     }
@@ -286,9 +312,13 @@ function ConsultingFlowOverlay({
   // Automatically trigger simulation when we reach a sim node (ends the overlay)
   useEffect(() => {
     if (!currentNode || currentNode.type !== "sim") return
+    if (hasRenderableOverlay || hasPlayableVideo) return
+    const hasNextSteps =
+      Array.isArray(currentNode.choices) && currentNode.choices.some((choice) => Boolean(choice?.next))
+    if (hasNextSteps) return
     const selection = pendingChoice ?? selectionMap["consulting"] ?? { key: "A" as OptionKey, label: currentNode.title }
     navigateWithOption(selection.key, selection.label)
-  }, [currentNode, navigateWithOption, pendingChoice, selectionMap])
+  }, [currentNode, hasRenderableOverlay, hasPlayableVideo, navigateWithOption, pendingChoice, selectionMap])
 
   useEffect(() => {
     if (!currentNode || (currentNode.type !== "video" && currentNode.type !== "sim")) {
@@ -306,6 +336,47 @@ function ConsultingFlowOverlay({
       autoAdvanceTriggeredRef.current = false
     }
   }, [currentNode])
+
+  const renderOverlayHtml = (raw?: string) => {
+    if (!raw || isPlaceholderValue(raw)) {
+      return (
+        <div className="rounded-xl border border-dashed border-white/20 bg-white/5 px-5 py-4 text-sm text-white/80">
+          Interactive content will appear here once the HTML link is added to the flow.
+        </div>
+      )
+    }
+
+    const trimmed = raw.trim()
+    const looksLikeHtml = /^</.test(trimmed) && /<\/?[a-z]/i.test(trimmed)
+
+    if (looksLikeHtml) {
+      return (
+        <div
+          className="max-h-[70vh] w-full overflow-y-auto rounded-xl border border-white/10 bg-black/60 px-6 py-5 text-left text-sm leading-relaxed text-white"
+          dangerouslySetInnerHTML={{ __html: trimmed }}
+        />
+      )
+    }
+
+    return (
+      <div className="flex w-full flex-col gap-3">
+        <iframe
+          src={trimmed}
+          title="interactive-content"
+          className="h-[70vh] w-full rounded-xl border border-white/10 bg-black/80"
+          allowFullScreen
+        />
+        <a
+          href={trimmed}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="inline-flex items-center justify-center gap-2 self-start rounded-lg border border-white/20 px-4 py-2 text-sm font-medium text-white/90 transition hover:bg-white/10"
+        >
+          Open in new tab
+        </a>
+      </div>
+    )
+  }
 
   const renderContent = () => {
     if (state.loading) {
@@ -366,42 +437,72 @@ function ConsultingFlowOverlay({
       )
     }
 
-    // video or sim
+    const showVideoPlayer =
+      currentNode.type === "video" || (currentNode.type === "sim" && hasPlayableVideo)
+
     return (
-      <div className="relative flex h-full w-full items-center justify-center">
-        <VideoPlayer
-          key={state.currentNodeId ?? "unknown"}
-          src={resolvedVideoUrl}
-          className="h-full w-full object-cover"
-          showOptions={false}
-          hideControls={false}
-          autoplay
-          startFullscreen={false}
-          trackingConfig={{
-            videoId: `consulting:${state.currentNodeId ?? "unknown"}`,
-            videoUrl: resolvedVideoUrl,
-            streamSelected: "consulting",
-          }}
-          onPlaybackChange={(playing) => {
-            if (playing) {
-              setPlaybackStarted(true)
-            }
-          }}
-          onTrackedEvent={(_, eventName) => {
-            if (eventName === "video_completed" && autoNextTargetRef.current && !autoAdvanceTriggeredRef.current) {
-              autoAdvanceTriggeredRef.current = true
-              const target = autoNextTargetRef.current
-              if (target) {
-                const flow = state.flow
-                if (flow?.nodes[target]) {
-                  navigateToNode(target)
-                } else {
-                  onFlowFailed()
-                }
-              }
-            }
-          }}
-        />
+      <div className="relative flex h-full w-full items-center justify-center px-6">
+        <div className="flex w-full max-w-5xl flex-col items-center gap-6">
+          {showVideoPlayer ? (
+            <div className="w-full overflow-hidden rounded-2xl border border-white/10 bg-black/60 shadow-lg">
+              <VideoPlayer
+                key={state.currentNodeId ?? "unknown"}
+                src={resolvedVideoUrl}
+                className="h-full w-full"
+                showOptions={false}
+                hideControls={false}
+                autoplay
+                startFullscreen={false}
+                trackingConfig={{
+                  videoId: `consulting:${state.currentNodeId ?? "unknown"}`,
+                  videoUrl: resolvedVideoUrl,
+                  streamSelected: "consulting",
+                }}
+                onPlaybackChange={(playing) => {
+                  if (playing) {
+                    setPlaybackStarted(true)
+                  }
+                }}
+                onTrackedEvent={(_, eventName) => {
+                  if (eventName === "video_completed" && autoNextTargetRef.current && !autoAdvanceTriggeredRef.current) {
+                    autoAdvanceTriggeredRef.current = true
+                    const target = autoNextTargetRef.current
+                    if (target) {
+                      const flow = state.flow
+                      if (flow?.nodes[target]) {
+                        navigateToNode(target)
+                      } else {
+                        onFlowFailed()
+                      }
+                    }
+                  }
+                }}
+              />
+            </div>
+          ) : null}
+
+          {currentNodeOverlays.length > 0 ? (
+            <div className="w-full space-y-5">
+              {currentNodeOverlays.map((overlay, index) => (
+                <div
+                  key={overlay.label ?? overlay.html ?? `${state.currentNodeId}-overlay-${index}`}
+                  className="space-y-3 text-left text-white"
+                >
+                  {overlay.label ? (
+                    <p className="text-sm font-semibold uppercase tracking-widest text-white/70">{overlay.label}</p>
+                  ) : null}
+                  {renderOverlayHtml(overlay.html)}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {!showVideoPlayer && !hasRenderableOverlay ? (
+            <div className="w-full rounded-xl border border-white/10 bg-black/60 px-6 py-5 text-center text-sm text-white/80">
+              Video or interactive content will appear here once configured in the flow.
+            </div>
+          ) : null}
+        </div>
       </div>
     )
   }
