@@ -83,7 +83,6 @@ function ConsultingFlowOverlay({
     currentNodeId: null,
   })
   const [resolvedVideoUrl, setResolvedVideoUrl] = useState<string>(STUDY_STREAMS_VIDEO_FALLBACK_URL)
-  const [videoAvailable, setVideoAvailable] = useState(false)
   const [optionsUnlocked, setOptionsUnlocked] = useState(false)
   const [pendingChoice, setPendingChoice] = useState<{ key: OptionKey; label: string } | null>(null)
   const unlockTimerRef = useRef<number | null>(null)
@@ -154,14 +153,12 @@ function ConsultingFlowOverlay({
   useEffect(() => {
     if (!currentNode || (currentNode.type !== "video" && currentNode.type !== "sim")) {
       setResolvedVideoUrl(STUDY_STREAMS_VIDEO_FALLBACK_URL)
-      setVideoAvailable(false)
       return
     }
 
     const video = currentNode.video
     if (!video || isPlaceholderValue(video)) {
       setResolvedVideoUrl(STUDY_STREAMS_VIDEO_FALLBACK_URL)
-      setVideoAvailable(false)
       return
     }
 
@@ -170,14 +167,11 @@ function ConsultingFlowOverlay({
       try {
         const resolved = await resolveVideoUrl(video, STUDY_STREAMS_VIDEO_FALLBACK_URL)
         if (!cancelled) {
-          const available = !isPlaceholderValue(video) && Boolean(resolved)
           setResolvedVideoUrl(resolved ?? STUDY_STREAMS_VIDEO_FALLBACK_URL)
-          setVideoAvailable(available)
         }
       } catch {
         if (!cancelled) {
           setResolvedVideoUrl(STUDY_STREAMS_VIDEO_FALLBACK_URL)
-          setVideoAvailable(false)
         }
       }
     }
@@ -227,13 +221,8 @@ function ConsultingFlowOverlay({
 
     autoNextTargetRef.current = null
     autoAdvanceTriggeredRef.current = false
-    if (!videoAvailable) {
-      setPlaybackStarted(true)
-      setOptionsUnlocked(true)
-    } else {
-      setOptionsUnlocked(false)
-    }
-  }, [currentNode, hasInteractiveChoices, videoAvailable])
+    setOptionsUnlocked(false)
+  }, [currentNode, hasInteractiveChoices])
 
   useEffect(() => {
     if (!currentNode || (currentNode.type !== "video" && currentNode.type !== "sim")) {
@@ -318,44 +307,6 @@ function ConsultingFlowOverlay({
     }
   }, [currentNode])
 
-  const renderOverlayHtml = (html?: string) => {
-    if (!html || html.trim().length === 0 || isPlaceholderValue(html)) {
-      return (
-        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-          Overlay content pending. Update flow.json with a valid URL or HTML snippet.
-        </div>
-      )
-    }
-
-    const trimmed = html.trim()
-
-    if (/^https?:\/\//i.test(trimmed)) {
-      return (
-        <iframe
-          src={trimmed}
-          title="flow-overlay"
-          className="h-96 w-full rounded-xl border border-slate-200"
-          loading="lazy"
-        />
-      )
-    }
-
-    if (/^</.test(trimmed) && /<\/?[a-z]/i.test(trimmed)) {
-      return (
-        <div
-          className="prose prose-sm max-w-none rounded-xl border border-slate-200 bg-white px-4 py-4"
-          dangerouslySetInnerHTML={{ __html: trimmed }}
-        />
-      )
-    }
-
-    return (
-      <pre className="whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-        {html}
-      </pre>
-    )
-  }
-
   const renderContent = () => {
     if (state.loading) {
       return (
@@ -381,10 +332,13 @@ function ConsultingFlowOverlay({
 
     if (currentNode.type === "message") {
       return (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-6 px-6">
-          <div className="max-w-3xl space-y-4 rounded-xl border border-white/20 bg-black/40 px-6 py-6 text-left text-white">
+        <div className="flex h-full w-full items-center justify-center px-6">
+          <div className="max-w-3xl rounded-xl border border-white/20 bg-black/40 px-6 py-6 text-left text-white">
             <h2 className="text-xl font-semibold">{currentNode.title}</h2>
-            {renderOverlayHtml(currentNode.html)}
+            <div
+              className="prose prose-invert mt-4 max-w-none text-base text-white/80"
+              dangerouslySetInnerHTML={{ __html: currentNode.html ?? "Content coming soon." }}
+            />
           </div>
         </div>
       )
@@ -414,63 +368,40 @@ function ConsultingFlowOverlay({
 
     // video or sim
     return (
-      <div className="space-y-4">
-        <div className="flex flex-col gap-1">
-          <h3 className="text-lg font-semibold text-slate-900">{currentNode.title}</h3>
-          {currentNode.type === "sim" ? (
-            <span className="text-xs font-medium uppercase tracking-wide text-indigo-600">Simulation</span>
-          ) : null}
-          {currentNode.notes ? <p className="text-sm text-slate-500">{currentNode.notes}</p> : null}
-        </div>
-        {videoAvailable ? (
-          <div className="overflow-hidden rounded-xl border border-slate-200">
-            <VideoPlayer
-              key={state.currentNodeId ?? "unknown"}
-              src={resolvedVideoUrl}
-              className="h-full w-full object-cover"
-              showOptions={false}
-              hideControls={false}
-              autoplay
-              startFullscreen={false}
-              trackingConfig={{
-                videoId: `consulting:${state.currentNodeId ?? "unknown"}`,
-                videoUrl: resolvedVideoUrl,
-                streamSelected: "consulting",
-              }}
-              onPlaybackChange={(playing) => {
-                if (playing) {
-                  setPlaybackStarted(true)
+      <div className="relative flex h-full w-full items-center justify-center">
+        <VideoPlayer
+          key={state.currentNodeId ?? "unknown"}
+          src={resolvedVideoUrl}
+          className="h-full w-full object-cover"
+          showOptions={false}
+          hideControls={false}
+          autoplay
+          startFullscreen={false}
+          trackingConfig={{
+            videoId: `consulting:${state.currentNodeId ?? "unknown"}`,
+            videoUrl: resolvedVideoUrl,
+            streamSelected: "consulting",
+          }}
+          onPlaybackChange={(playing) => {
+            if (playing) {
+              setPlaybackStarted(true)
+            }
+          }}
+          onTrackedEvent={(_, eventName) => {
+            if (eventName === "video_completed" && autoNextTargetRef.current && !autoAdvanceTriggeredRef.current) {
+              autoAdvanceTriggeredRef.current = true
+              const target = autoNextTargetRef.current
+              if (target) {
+                const flow = state.flow
+                if (flow?.nodes[target]) {
+                  navigateToNode(target)
+                } else {
+                  onFlowFailed()
                 }
-              }}
-              onTrackedEvent={(_, eventName) => {
-                if (eventName === "video_completed" && autoNextTargetRef.current && !autoAdvanceTriggeredRef.current) {
-                  autoAdvanceTriggeredRef.current = true
-                  const target = autoNextTargetRef.current
-                  if (target) {
-                    const flow = state.flow
-                    if (flow?.nodes[target]) {
-                      navigateToNode(target)
-                    } else {
-                      onFlowFailed()
-                    }
-                  }
-                }
-              }}
-            />
-          </div>
-        ) : null}
-        {currentNode.overlays && currentNode.overlays.length > 0 ? (
-          <div className="space-y-3">
-            {currentNode.overlays.map((overlay, index) => (
-              <div key={overlay.label ?? overlay.html ?? index} className="space-y-2">
-                {overlay.label ? (
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{overlay.label}</p>
-                ) : null}
-                {renderOverlayHtml(overlay.html)}
-              </div>
-            ))}
-          </div>
-        ) : null}
+              }
+            }
+          }}
+        />
       </div>
     )
   }
@@ -1217,17 +1148,19 @@ export default function StudyStreamsPage() {
           .finally(() => {
             setOverlayContainer(div)
             setOverlayStream(streamId)
+            // Consulting: play an extra intro video first, then fall back to the resolved stream video
             pendingMainPlaybackRef.current = false
             selectedOptionRef.current = null
-            if (streamId === "consulting") {
+            if (streamId === 'consulting') {
               setConsultingFlowActive(true)
-              setOverlayIntroUrl(null)
-              setOverlayPromptUrl(null)
+              setOverlayIntroUrl('https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/ExploreYou%20Intro.mp4')
+              setOverlayPromptUrl('https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/in%20flight%20option%20for%20excited.mp4')
               setOverlayMidUrl(null)
               setConsultingPromptMode("default")
-              setOverlayStage("main")
-              overlayIntroPlayingRef.current = false
-              setOverlayVideoUrl(STUDY_STREAMS_VIDEO_FALLBACK_URL)
+              setOverlayStage("intro")
+              overlayIntroPlayingRef.current = true
+              // After prompt, play this specific Airplane Video instead of the default generated clip
+              setOverlayVideoUrl('https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/Airplane%20Video.mp4')
             } else {
               setConsultingFlowActive(false)
               setOverlayIntroUrl(null)
