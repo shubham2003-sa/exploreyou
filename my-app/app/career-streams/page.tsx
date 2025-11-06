@@ -352,7 +352,7 @@ function ConsultingFlowOverlay({
     if (looksLikeHtml) {
       return (
         <div
-          className="max-h-[70vh] w-full overflow-y-auto rounded-xl border border-white/10 bg-black/60 px-6 py-5 text-left text-sm leading-relaxed text-white"
+          className="h-[85vh] w-full overflow-y-auto rounded-xl border border-white/10 bg-black/60 px-6 py-5 text-left text-sm leading-relaxed text-white"
           dangerouslySetInnerHTML={{ __html: trimmed }}
         />
       )
@@ -363,7 +363,7 @@ function ConsultingFlowOverlay({
         <iframe
           src={trimmed}
           title="interactive-content"
-          className="h-[70vh] w-full rounded-xl border border-white/10 bg-black/80"
+          className="h-[85vh] w-full rounded-xl border border-white/10 bg-black/80"
           allowFullScreen
         />
         <a
@@ -377,6 +377,13 @@ function ConsultingFlowOverlay({
       </div>
     )
   }
+
+  const useOverlayLayout = useMemo(() => {
+    if (!currentNode) return false
+    if (hasRenderableOverlay) return true
+    if (currentNode.type === "sim" && !hasPlayableVideo) return true
+    return false
+  }, [currentNode, hasPlayableVideo, hasRenderableOverlay])
 
   const renderContent = () => {
     if (state.loading) {
@@ -437,12 +444,52 @@ function ConsultingFlowOverlay({
       )
     }
 
+    if (!useOverlayLayout) {
+      return (
+        <div className="relative flex h-full w-full items-center justify-center">
+          <VideoPlayer
+            key={state.currentNodeId ?? "unknown"}
+            src={resolvedVideoUrl}
+            className="h-full w-full object-cover"
+            showOptions={false}
+            hideControls={false}
+            autoplay
+            startFullscreen={false}
+            trackingConfig={{
+              videoId: `consulting:${state.currentNodeId ?? "unknown"}`,
+              videoUrl: resolvedVideoUrl,
+              streamSelected: "consulting",
+            }}
+            onPlaybackChange={(playing) => {
+              if (playing) {
+                setPlaybackStarted(true)
+              }
+            }}
+            onTrackedEvent={(_, eventName) => {
+              if (eventName === "video_completed" && autoNextTargetRef.current && !autoAdvanceTriggeredRef.current) {
+                autoAdvanceTriggeredRef.current = true
+                const target = autoNextTargetRef.current
+                if (target) {
+                  const flow = state.flow
+                  if (flow?.nodes[target]) {
+                    navigateToNode(target)
+                  } else {
+                    onFlowFailed()
+                  }
+                }
+              }
+            }}
+          />
+        </div>
+      )
+    }
+
     const showVideoPlayer =
       currentNode.type === "video" || (currentNode.type === "sim" && hasPlayableVideo)
 
     return (
-      <div className="relative flex h-full w-full items-center justify-center px-6">
-        <div className="flex w-full max-w-5xl flex-col items-center gap-6">
+      <div className="relative flex h-full w-full items-center justify-center px-4">
+        <div className="flex h-full w-full max-w-6xl flex-col items-center gap-6">
           {showVideoPlayer ? (
             <div className="w-full overflow-hidden rounded-2xl border border-white/10 bg-black/60 shadow-lg">
               <VideoPlayer
@@ -482,11 +529,12 @@ function ConsultingFlowOverlay({
           ) : null}
 
           {currentNodeOverlays.length > 0 ? (
-            <div className="w-full space-y-5">
+            <div className="w-full flex-1 space-y-5">
               {currentNodeOverlays.map((overlay, index) => (
                 <div
                   key={overlay.label ?? overlay.html ?? `${state.currentNodeId}-overlay-${index}`}
                   className="space-y-3 text-left text-white"
+                  style={{ minHeight: "85vh" }}
                 >
                   {overlay.label ? (
                     <p className="text-sm font-semibold uppercase tracking-widest text-white/70">{overlay.label}</p>
@@ -494,12 +542,6 @@ function ConsultingFlowOverlay({
                   {renderOverlayHtml(overlay.html)}
                 </div>
               ))}
-            </div>
-          ) : null}
-
-          {!showVideoPlayer && !hasRenderableOverlay ? (
-            <div className="w-full rounded-xl border border-white/10 bg-black/60 px-6 py-5 text-center text-sm text-white/80">
-              Video or interactive content will appear here once configured in the flow.
             </div>
           ) : null}
         </div>
