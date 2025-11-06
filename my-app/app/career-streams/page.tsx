@@ -318,6 +318,44 @@ function ConsultingFlowOverlay({
     }
   }, [currentNode])
 
+  const renderOverlayHtml = (html?: string) => {
+    if (!html || html.trim().length === 0 || isPlaceholderValue(html)) {
+      return (
+        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+          Overlay content pending. Update flow.json with a valid URL or HTML snippet.
+        </div>
+      )
+    }
+
+    const trimmed = html.trim()
+
+    if (/^https?:\/\//i.test(trimmed)) {
+      return (
+        <iframe
+          src={trimmed}
+          title="flow-overlay"
+          className="h-96 w-full rounded-xl border border-slate-200"
+          loading="lazy"
+        />
+      )
+    }
+
+    if (/^</.test(trimmed) && /<\/?[a-z]/i.test(trimmed)) {
+      return (
+        <div
+          className="prose prose-sm max-w-none rounded-xl border border-slate-200 bg-white px-4 py-4"
+          dangerouslySetInnerHTML={{ __html: trimmed }}
+        />
+      )
+    }
+
+    return (
+      <pre className="whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        {html}
+      </pre>
+    )
+  }
+
   const renderContent = () => {
     if (state.loading) {
       return (
@@ -343,13 +381,10 @@ function ConsultingFlowOverlay({
 
     if (currentNode.type === "message") {
       return (
-        <div className="flex h-full w-full items-center justify-center px-6">
-          <div className="max-w-3xl rounded-xl border border-white/20 bg-black/40 px-6 py-6 text-left text-white">
+        <div className="flex h-full w-full flex-col items-center justify-center gap-6 px-6">
+          <div className="max-w-3xl space-y-4 rounded-xl border border-white/20 bg-black/40 px-6 py-6 text-left text-white">
             <h2 className="text-xl font-semibold">{currentNode.title}</h2>
-            <div
-              className="prose prose-invert mt-4 max-w-none text-base text-white/80"
-              dangerouslySetInnerHTML={{ __html: currentNode.html ?? "Content coming soon." }}
-            />
+            {renderOverlayHtml(currentNode.html)}
           </div>
         </div>
       )
@@ -379,46 +414,64 @@ function ConsultingFlowOverlay({
 
     // video or sim
     return (
-      <div className="relative flex h-full w-full items-center justify-center">
+      <div className="space-y-4">
+        {nodeBadge}
+        <div className="flex flex-col gap-1">
+          <h3 className="text-lg font-semibold text-slate-900">{currentNode.title}</h3>
+          {currentNode.type === "sim" ? (
+            <span className="text-xs font-medium uppercase tracking-wide text-indigo-600">Simulation</span>
+          ) : null}
+          {currentNode.notes ? <p className="text-sm text-slate-500">{currentNode.notes}</p> : null}
+        </div>
         {videoAvailable ? (
-          <VideoPlayer
-            key={state.currentNodeId ?? "unknown"}
-            src={resolvedVideoUrl}
-            className="h-full w-full object-cover"
-            showOptions={false}
-            hideControls={false}
-            autoplay
-            startFullscreen={false}
-            trackingConfig={{
-              videoId: `consulting:${state.currentNodeId ?? "unknown"}`,
-              videoUrl: resolvedVideoUrl,
-              streamSelected: "consulting",
-            }}
-            onPlaybackChange={(playing) => {
-              if (playing) {
-                setPlaybackStarted(true)
-              }
-            }}
-            onTrackedEvent={(_, eventName) => {
-              if (eventName === "video_completed" && autoNextTargetRef.current && !autoAdvanceTriggeredRef.current) {
-                autoAdvanceTriggeredRef.current = true
-                const target = autoNextTargetRef.current
-                if (target) {
-                  const flow = state.flow
-                  if (flow?.nodes[target]) {
-                    navigateToNode(target)
-                  } else {
-                    onFlowFailed()
+          <div className="overflow-hidden rounded-xl border border-slate-200">
+            <VideoPlayer
+              key={state.currentNodeId ?? "unknown"}
+              src={resolvedVideoUrl}
+              className="h-full w-full object-cover"
+              showOptions={false}
+              hideControls={false}
+              autoplay
+              startFullscreen={false}
+              trackingConfig={{
+                videoId: `consulting:${state.currentNodeId ?? "unknown"}`,
+                videoUrl: resolvedVideoUrl,
+                streamSelected: "consulting",
+              }}
+              onPlaybackChange={(playing) => {
+                if (playing) {
+                  setPlaybackStarted(true)
+                }
+              }}
+              onTrackedEvent={(_, eventName) => {
+                if (eventName === "video_completed" && autoNextTargetRef.current && !autoAdvanceTriggeredRef.current) {
+                  autoAdvanceTriggeredRef.current = true
+                  const target = autoNextTargetRef.current
+                  if (target) {
+                    const flow = state.flow
+                    if (flow?.nodes[target]) {
+                      navigateToNode(target)
+                    } else {
+                      onFlowFailed()
+                    }
                   }
                 }
-              }
-            }}
-          />
-        ) : (
-          <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 px-6 py-4 text-center text-amber-700">
-            Video unavailable for this node. Showing available content below.
+              }}
+            />
           </div>
-        )}
+        ) : null}
+        {activeNode.overlays && activeNode.overlays.length > 0 ? (
+          <div className="space-y-3">
+            {activeNode.overlays.map((overlay, index) => (
+              <div key={overlay.label ?? overlay.html ?? index} className="space-y-2">
+                {overlay.label ? (
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{overlay.label}</p>
+                ) : null}
+                {renderOverlayHtml(overlay.html)}
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
     )
   }
