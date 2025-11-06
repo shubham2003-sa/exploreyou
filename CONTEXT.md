@@ -36,21 +36,25 @@ Reference this document before modifying the codebase so changes stay aligned wi
 - `login/page.tsx` â€“ Primary login UI that calls `/api/login` (Supabase-backed) and redirects to `/study-streams`.
 - `auth/sign-up/page.tsx` â€“ Sign-up form posting to `/api/register`; stores a minimal profile on success. Email verification is handled by Supabase authâ€”users appear in Supabase immediately but may be unconfirmed.
 - `protected/page.tsx` â€“ Auth-guarded dashboard using middleware redirects and local storage.
-- `study-streams/page.tsx` â€“ Core interactive stream selection experience with **Consulting** flow restored from commit `634660c`. Coordinates fullscreen overlays, records progress (`/api/video-progress`), and routes into task simulations.
-  - The overlay timer is scheduled only after `handleOverlayPlaybackChange` confirms playback; keep the countdown anchored by the centered progress bar.
-  - Consulting flow stores both option key and descriptive label; continue passing the label in the `label` query parameter for `/task-simulation`.
+- `career-streams/page.tsx` � Career stream selector plus fullscreen overlay runtime.
+  - Non-consulting streams keep the historical intro/prompt/main video sequence, countdown timer, and manual option buttons.
+  - Consulting pulls flow data from `/api/career-flow/consulting` (BOM-stripped JSON) and falls back to `config/static-consulting-flow.ts`�a generated TypeScript snapshot of the early islands�when filesystem access is unavailable (e.g., Netlify).
+  - Video/sim nodes may define `autoNext`. When a node has no interactive choices and `autoNext` is present, the overlay automatically advances once `video_completed` fires; no buttons render in that state.
+  - If the JSON references a missing node or fails to load, the overlay reverts to the legacy consulting clips to avoid trapping users in fullscreen.
+  - Option selections still record both key and descriptive label via `recordVideoProgressEvent` so downstream score pages retain context.
 - `video-player/[subject]/page.tsx` â€“ Subject-specific player page loading progress, writing events, and driving fullscreen controls. Flags (`video_autoplay`, `video_fullscreen`) are read from `sessionStorage`; errors are swallowed safely.
 - `next-video/[subject]/page.tsx` â€“ Follow-up video flow. Consulting segments keep interactive buttons; non-interactive subjects auto-advance to `/task-simulation/{subject}` after `video_completed` fires. Non-interactive videos start muted to comply with autoplay policies.
 - API routes:
   - `/api/login`, `/api/logout`, `/api/register`, `/api/me`, `/api/video-progress`, `/api/videos`, `/api/health`, `/api/auth/resend-confirmation`, `/api/generate-video`, `/api/page-sessions/*`, `/api/scores/*` - All run with `runtime = "nodejs"` to access Supabase libraries.
   - `/api/page-sessions/start`, `/api/page-sessions/[psid]/events-batch`, `/api/page-sessions/[psid]/cursor-dwell`, `/api/page-sessions/[psid]/end` persist navigation analytics directly to Supabase tables (`page_sessions`, `events`, `cursor_dwell_metrics`).
   - `/api/scores/me` and `/api/scores/events` surface Supabase `user_scores` data and aggregate new events.
+  - `/api/career-flow/[subject]` attempts to read flow definitions from disk (stripping UTF-8 BOMs) and is primarily used by the consulting overlay; deployments without filesystem access rely on the generated TypeScript fallback.
   - `/api/videos` lists Supabase storage objects and returns signed URLs (TTL defaults to `NEXT_PUBLIC_SUPABASE_SIGNED_URL_TTL`). Falls back to public paths if signing fails.
 
 
 
 ### Components (`components/`)
-- `client-wrapper.tsx` â€“ Client entry that mounts `SessionTracker`, `ScoreBar`, and provides `ScoreProvider`.
+- `client-wrapper.tsx` � Client entry that mounts `SessionTracker`, provides `ScoreProvider`, and keeps the floating `ScoreBar` disabled (wrapped in `false && ...`) per current UX feedback.
 - `header.tsx` â€“ Shared header syncing with `/api/me` and updating stored profile.
 - `session-tracker.tsx` - Tracks navigation/cursor events, batches them, and syncs with the Supabase-backed `/api/page-sessions` routes. Mouse-move dwell tracking remains commented out, but click logging and periodic queue flushing are re-enabled (flush every 2s via `flushTimerRef`).
 - `video-player.tsx` â€“ Full-featured video player with overlays, timers, Supabase progress tracking, and optional response buttons. Event listeners mount once and rely on refs for fresh callbacks; avoid reintroducing dependencies that would rebind listeners or pause playback on cleanup.
@@ -71,6 +75,7 @@ Reference this document before modifying the codebase so changes stay aligned wi
 - `lib/video-generator.ts` - Optional hook to call an external video generator via `NEXT_PUBLIC_BACKEND_URL`; always supply a deployed URL (never localhost) or guard the UI that depends on it.
 - `lib/utils.ts` â€“ Tailwind `cn` helper built on `clsx` and `tailwind-merge`.
 - `lib/cursor-targets.ts` â€“ Hook for broadcasting cursor target metadata with proper cleanup.
+- `config/static-consulting-flow.ts` � Generated TypeScript snapshot of the early consulting flow (AZ1?J1). Regenerate it from `career-data/consulting/flow.json` whenever those nodes change so bundled builds stay in sync.
 
 ### Scripts & Database
 - `scripts/001_create_users_table.sql` - Supabase SQL migration creating `profiles` table and trigger to mirror auth users.
@@ -85,3 +90,7 @@ Reference this document before modifying the codebase so changes stay aligned wi
 ## Using This Document
 - Before editing a file, skim its entry to understand dependencies and cautions.
 - When new files are added or behaviors change, append concise descriptions and any new guidelines so future contributors stay aligned.
+
+
+
+

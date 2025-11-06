@@ -87,6 +87,8 @@ function ConsultingFlowOverlay({
   const [pendingChoice, setPendingChoice] = useState<{ key: OptionKey; label: string } | null>(null)
   const unlockTimerRef = useRef<number | null>(null)
   const historyRef = useRef<string[]>([])
+  const autoNextTargetRef = useRef<string | null>(null)
+  const autoAdvanceTriggeredRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -219,6 +221,8 @@ function ConsultingFlowOverlay({
       ...prev,
       currentNodeId: nodeId,
     }))
+    autoAdvanceTriggeredRef.current = false
+    autoNextTargetRef.current = null
   }, [onClose, state.currentNodeId, state.flow, onFlowFailed])
 
   const handleChoiceSelect = useCallback((choice: FlowChoice, index: number) => {
@@ -241,6 +245,23 @@ function ConsultingFlowOverlay({
     const selection = pendingChoice ?? selectionMap["consulting"] ?? { key: "A" as OptionKey, label: currentNode.title }
     navigateWithOption(selection.key, selection.label)
   }, [currentNode, navigateWithOption, pendingChoice, selectionMap])
+
+  useEffect(() => {
+    if (!currentNode || (currentNode.type !== "video" && currentNode.type !== "sim")) {
+      autoNextTargetRef.current = null
+      autoAdvanceTriggeredRef.current = false
+      return
+    }
+    const hasChoices =
+      Array.isArray(currentNode.choices) && currentNode.choices.some((choice) => Boolean(choice?.next))
+    if (!hasChoices && currentNode.autoNext) {
+      autoNextTargetRef.current = currentNode.autoNext
+      autoAdvanceTriggeredRef.current = false
+    } else {
+      autoNextTargetRef.current = null
+      autoAdvanceTriggeredRef.current = false
+    }
+  }, [currentNode])
 
   const renderContent = () => {
     if (state.loading) {
@@ -317,6 +338,20 @@ function ConsultingFlowOverlay({
             videoUrl: resolvedVideoUrl,
             streamSelected: "consulting",
           }}
+          onTrackedEvent={(_, eventName) => {
+            if (eventName === "video_completed" && autoNextTargetRef.current && !autoAdvanceTriggeredRef.current) {
+              autoAdvanceTriggeredRef.current = true
+              const target = autoNextTargetRef.current
+              if (target) {
+                const flow = state.flow
+                if (flow?.nodes[target]) {
+                  navigateToNode(target)
+                } else {
+                  onFlowFailed()
+                }
+              }
+            }
+          }}
         />
       </div>
     )
@@ -388,6 +423,7 @@ type FlowNode =
       overlays?: FlowOverlay[]
       choices?: FlowChoice[]
       notes?: string
+      autoNext?: string | null
     }
   | {
       type: "quiz"
@@ -646,6 +682,8 @@ export default function StudyStreamsPage() {
     }
     setOptionsUnlocked(false)
     setConsultingFlowActive(false)
+    autoNextTargetRef.current = null
+    autoAdvanceTriggeredRef.current = false
   }, [overlayContainer, resetTimer])
 
   const transitionToMainStage = useCallback(() => {

@@ -20,9 +20,17 @@
       "title": "Partner Welcome Video",
       "video": "https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/Partner%20First%20Day%20.mp4",
       "choices": [
-        { "label": "Address Nervousness", "next": "G1" },
-        { "label": "Ask About Flight", "next": "H1" },
-        { "label": "Skip Ahead", "next": "AN1" }
+        { "label": "I am okay but feeling a bit nervous!", "next": "G1" },
+        { "label": "I am really excited! whats next?", "next": "H1" },  
+      ]
+    },
+    "AZ1": {
+      "type": "video",
+      "title": "How to Play",
+      "video": "https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/0902.mp4",
+      "choices": [
+        { "label": "Read 'How to Play'", "next": "D1" },
+        { "label": "Start Day 1", "next": "F1"}
       ]
     },
     "G1": {
@@ -39,8 +47,9 @@
       "title": "Partner Asking About Flight",
       "video": "https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/in%20flight%20option%20for%20excited.mp4",
       "choices": [
-        { "label": "Morning O+ption 1", "next": "AO1" },
-        { "label": "Morning Option 2", "next": "AM1" }
+        { "label": "Clear Inbox", "next": "AN1" },
+        { "label": "Review Market Intelligence", "next": "AM1" },
+        { "label": "Take a nap!", "next": "AO1" }
       ]
     },
     "AN1": {
@@ -48,27 +57,19 @@
       "title": "Monday 6:30 AM (Path 1)",
       "video": "https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/Monday%20630%20am.mp4",
       "choices": [
-        { "label": "Laptop Review", "next": "I1" },
-        { "label": "Inbox Triage", "next": "L1" }
       ]
     },
     "AM1": {
       "type": "video",
       "title": "Monday 6:30 AM (Path 2)",
       "video": "https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/Monday%20630%20am.mp4",
-      "choices": [
-        { "label": "Laptop Review", "next": "J1" },
-        { "label": "Inbox Triage", "next": "L1" }
-      ]
+      "choices": [ ]
     },
     "AO1": {
       "type": "video",
       "title": "Monday 6:30 AM (Sleep Variant)",
       "video": "https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/Monday%20630%20am.mp4",
-      "choices": [
-        { "label": "Sleep Consequences", "next": "K1" },
-        { "label": "Inbox Triage", "next": "L1" }
-      ]
+      "choices": [ ]
     },
     "I1": {
       "type": "video",
@@ -90,7 +91,7 @@
     "K1": {
       "type": "video",
       "title": "Airplane Video of Sleep",
-      "video": "PASTE_VIDEO_URL_K1",
+      "video": "https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/Take%20a%20nap.mp4",
       "choices": [
         { "label": "Inbox", "next": "L1" },
         { "label": "Market Intelligence", "next": "O1" }

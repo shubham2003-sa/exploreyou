@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -30,6 +30,7 @@ type VideoFlowNode = BaseFlowNode & {
   type: "video" | "sim"
   video?: string
   overlays?: FlowOverlay[]
+  autoNext?: string | null
 }
 
 type QuizFlowNode = BaseFlowNode & {
@@ -161,6 +162,8 @@ export function CareerFlowRunner({ subject, className }: CareerFlowRunnerProps) 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null)
+  const autoNextTargetRef = useRef<string | null>(null)
+  const autoAdvanceTriggeredRef = useRef(false)
   const [history, setHistory] = useState<string[]>([])
 
   useEffect(() => {
@@ -186,6 +189,8 @@ export function CareerFlowRunner({ subject, className }: CareerFlowRunnerProps) 
           setFlow(parsed)
           setActiveNodeId(parsed.start ?? null)
           setHistory([])
+          autoNextTargetRef.current = null
+          autoAdvanceTriggeredRef.current = false
         }
       } catch (err) {
         if (!cancelled) {
@@ -193,6 +198,8 @@ export function CareerFlowRunner({ subject, className }: CareerFlowRunnerProps) 
           setError(err instanceof Error ? err.message : "Failed to load flow data")
           setFlow(null)
           setActiveNodeId(null)
+          autoNextTargetRef.current = null
+          autoAdvanceTriggeredRef.current = false
         }
       } finally {
         if (!cancelled) {
@@ -223,6 +230,8 @@ export function CareerFlowRunner({ subject, className }: CareerFlowRunnerProps) 
       }
       setHistory((prev) => (activeNodeId ? [...prev, activeNodeId] : prev))
       setActiveNodeId(nextId)
+      autoNextTargetRef.current = null
+      autoAdvanceTriggeredRef.current = false
     },
     [activeNodeId, flow?.nodes],
   )
@@ -231,6 +240,8 @@ export function CareerFlowRunner({ subject, className }: CareerFlowRunnerProps) 
     if (!flow) return
     setActiveNodeId(flow.start ?? null)
     setHistory([])
+    autoNextTargetRef.current = null
+    autoAdvanceTriggeredRef.current = false
   }, [flow])
 
   const handleBack = useCallback(() => {
@@ -244,6 +255,21 @@ export function CareerFlowRunner({ subject, className }: CareerFlowRunnerProps) 
       return nextHistory
     })
   }, [])
+
+  useEffect(() => {
+    autoAdvanceTriggeredRef.current = false
+    if (!activeNode || (activeNode.type !== "video" && activeNode.type !== "sim")) {
+      autoNextTargetRef.current = null
+      return
+    }
+    const hasChoices =
+      Array.isArray(activeNode.choices) && activeNode.choices.some((choice) => Boolean(choice?.next))
+    if (!hasChoices && "autoNext" in activeNode && activeNode.autoNext) {
+      autoNextTargetRef.current = activeNode.autoNext
+    } else {
+      autoNextTargetRef.current = null
+    }
+  }, [activeNode])
 
   const renderChoices = useCallback(
     (choices: FlowChoice[] | undefined) => {
@@ -338,6 +364,16 @@ export function CareerFlowRunner({ subject, className }: CareerFlowRunnerProps) 
               videoUrl: resolvedVideo.url,
               streamSelected: subject,
             }}
+            onTrackedEvent={(_, eventName) => {
+              if (eventName === "video_completed" && autoNextTargetRef.current && !autoAdvanceTriggeredRef.current) {
+                autoAdvanceTriggeredRef.current = true
+                const target = autoNextTargetRef.current
+                autoNextTargetRef.current = null
+                if (target) {
+                  handleNavigate(target)
+                }
+              }
+            }}
           />
         </div>
         {resolvedVideo.missing ? (
@@ -361,6 +397,14 @@ export function CareerFlowRunner({ subject, className }: CareerFlowRunnerProps) 
         {renderChoices(activeNode.choices)}
       </div>
     )
+  }
+
+  if (error) {
+    return null
+  }
+
+  if (!flow && !loading) {
+    return null
   }
 
   return (
@@ -388,11 +432,6 @@ export function CareerFlowRunner({ subject, className }: CareerFlowRunnerProps) 
           <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-slate-600">
             <span className="h-3 w-3 animate-ping rounded-full bg-indigo-500" />
             Loading flow definition…
-          </div>
-        ) : error ? (
-          <div className="space-y-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-4 text-rose-700">
-            <p className="font-medium">Unable to load flow</p>
-            <p className="text-sm text-rose-600">{error}</p>
           </div>
         ) : (
           renderNodeContent()
