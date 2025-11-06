@@ -171,7 +171,7 @@ function ConsultingFlowOverlay({
         }
       } catch {
         if (!cancelled) {
-          setResolvedVideoUrl(STUDY_STREAMS_VIDEO_FALLBACK_URL)
+          onFlowFailed()
         }
       }
     }
@@ -180,7 +180,7 @@ function ConsultingFlowOverlay({
     return () => {
       cancelled = true
     }
-  }, [currentNode])
+  }, [currentNode, onFlowFailed])
 
   const hasInteractiveChoices = useMemo(() => {
     if (!currentNode || !("choices" in currentNode)) return false
