@@ -362,8 +362,9 @@ function ConsultingFlowOverlay({
       <iframe
         src={trimmed}
         title="interactive-content"
-        className="h-full w-full rounded-2xl border border-white/10 bg-black/80"
-        allowFullScreen
+        className="h-full w-full"
+        style={{ border: "none", backgroundColor: "transparent" }}
+        allow="fullscreen"
       />
     )
   }
