@@ -94,3 +94,31 @@ Reference this document before modifying the codebase so changes stay aligned wi
 
 
 
+### Analytics & Score Tracking
+- Page instruments rely on Supabase for telemetry. /api/page-sessions/* populate page_sessions, events, and cursor_dwell_metrics while /api/consulting/market-intel-scores records per-user Market Intelligence scores emitted from the fullscreen overlay.
+- Create the backing table with:
+`
+create table if not exists public.market_intel_scores (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default timezone('utc', now()),
+  captured_at timestamptz not null default timezone('utc', now()),
+  user_id uuid references auth.users(id),
+  user_email text,
+  session_id uuid,
+  page_session_id uuid references public.page_sessions(id),
+  page_id text,
+  flow_id text,
+  node_id text,
+  reason text,
+  client_confidence smallint,
+  team_morale smallint,
+  quality_of_insight smallint,
+  work_life_balance smallint,
+  time_remaining_seconds integer,
+  metadata jsonb
+);
+create index if not exists market_intel_scores_user_idx on public.market_intel_scores (user_id);
+create index if not exists market_intel_scores_session_idx on public.market_intel_scores (session_id);
+create index if not exists market_intel_scores_page_session_idx on public.market_intel_scores (page_session_id);
+`
+- Override the table name with NEXT_PUBLIC_SUPABASE_MARKET_SCORES_TABLE if needed.

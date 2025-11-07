@@ -39,6 +39,16 @@ type CursorTargetState = {
 
 const MIN_CURSOR_BATCH_MS = 250
 const DEFAULT_SOURCE_KEY = "__default__"
+const PAGE_SESSION_STORAGE_KEY = "exploreyou_page_session_id"
+
+const persistPageSessionId = (value: string | null) => {
+  if (typeof window === "undefined") return
+  if (!value) {
+    window.sessionStorage.removeItem(PAGE_SESSION_STORAGE_KEY)
+  } else {
+    window.sessionStorage.setItem(PAGE_SESSION_STORAGE_KEY, value)
+  }
+}
 
 const nowMs = () =>
   typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now()
@@ -278,6 +288,7 @@ export default function SessionTracker() {
       }
       psidRef.current = null
       startRef.current = null
+      persistPageSessionId(null)
     },
     [flushQueue]
   )
@@ -293,18 +304,21 @@ export default function SessionTracker() {
       if (res.ok) {
         const data = await res.json()
         psidRef.current = data.id
+        persistPageSessionId(data.id)
       } else {
         const text = await res.text().catch(() => "")
         if (process.env.NODE_ENV !== "production") {
           console.warn("[session-tracker] failed to start page session", res.status, text)
         }
         psidRef.current = null
+        persistPageSessionId(null)
       }
     } catch (error) {
       if (process.env.NODE_ENV !== "production") {
         console.warn("[session-tracker] start session request failed", error)
       }
       psidRef.current = null
+      persistPageSessionId(null)
     }
   }, [])
 

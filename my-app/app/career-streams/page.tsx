@@ -61,6 +61,7 @@ type ConsultingFlowState = {
 }
 
 const OPTION_KEY_SEQUENCE: OptionKey[] = ["A", "B", "C"]
+const PAGE_SESSION_STORAGE_KEY = "exploreyou_page_session_id"
 
 const isPlaceholderValue = (value?: string | null) => {
   if (!value) return true
@@ -90,6 +91,8 @@ function ConsultingFlowOverlay({
   const autoNextTargetRef = useRef<string | null>(null)
   const autoAdvanceTriggeredRef = useRef(false)
   const [playbackStarted, setPlaybackStarted] = useState(false)
+  const latestScoreSnapshotRef = useRef<MarketIntelScoreEvent | null>(null)
+  const latestScoreFetchRef = useRef<Promise<MarketIntelScoreEvent | null> | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -369,6 +372,139 @@ function ConsultingFlowOverlay({
     )
   }
 
+  const recordScoreUpdate = useCallback(
+    (payload?: MarketIntelScoreEvent | null) => {
+      if (!payload) return
+      const stats = payload.stats ?? {}
+      const hasStats =
+        typeof stats.clientConfidence === "number" ||
+        typeof stats.teamMorale === "number" ||
+        typeof stats.qualityOfInsight === "number" ||
+        typeof stats.workLifeBalance === "number"
+      if (!hasStats) return
+      const pageSessionId =
+        typeof window !== "undefined" ? window.sessionStorage?.getItem(PAGE_SESSION_STORAGE_KEY) : null
+      const body = {
+        flowId: payload.flowId ?? state.flow?.id ?? "consulting",
+        nodeId: payload.nodeId ?? state.currentNodeId ?? null,
+        pageId: payload.pageId ?? "career-streams",
+        reason: payload.reason ?? null,
+        stats,
+        remainingSeconds:
+          typeof payload.remainingSeconds === "number" ? Math.max(0, Math.round(payload.remainingSeconds)) : null,
+        capturedAt: payload.timestamp ?? Date.now(),
+        metadata: payload.metadata ?? null,
+        pageSessionId,
+      }
+      const snapshot: MarketIntelScoreEvent = {
+        flowId: body.flowId ?? undefined,
+        nodeId: body.nodeId ?? undefined,
+        pageId: body.pageId ?? undefined,
+        reason: body.reason ?? undefined,
+        stats,
+        remainingSeconds: body.remainingSeconds ?? undefined,
+        timestamp:
+          typeof body.capturedAt === "number"
+            ? body.capturedAt
+            : typeof body.capturedAt === "string"
+              ? Date.parse(body.capturedAt)
+              : Date.now(),
+        metadata: body.metadata ?? undefined,
+      }
+      latestScoreSnapshotRef.current = snapshot
+      void fetch("/api/consulting/market-intel-scores", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        keepalive: true,
+      }).catch(() => undefined)
+    },
+    [state.flow, state.currentNodeId]
+  )
+
+  const fetchLatestScoreSnapshot = useCallback(async () => {
+    if (typeof window === "undefined") return null
+    if (latestScoreFetchRef.current) {
+      return latestScoreFetchRef.current
+    }
+    const params = new URLSearchParams()
+    params.set("limit", "1")
+    const flowId = state.flow?.id
+    if (flowId) {
+      params.set("flowId", flowId)
+    }
+    const request = (async () => {
+      try {
+        const response = await fetch(`/api/consulting/market-intel-scores?${params.toString()}`, {
+          headers: { Accept: "application/json" },
+        })
+        if (!response.ok) return null
+        const payload = (await response.json()) as StoredMarketIntelScoreRow[]
+        const row = payload?.[0]
+        if (!row || !row.stats) {
+          return null
+        }
+        const snapshot: MarketIntelScoreEvent = {
+          flowId: row.flowId ?? undefined,
+          nodeId: row.nodeId ?? undefined,
+          pageId: row.pageId ?? undefined,
+          reason: row.reason ?? undefined,
+          remainingSeconds:
+            typeof row.remainingSeconds === "number" ? Math.max(0, row.remainingSeconds) : undefined,
+          stats: {
+            clientConfidence: row.stats.clientConfidence ?? undefined,
+            teamMorale: row.stats.teamMorale ?? undefined,
+            qualityOfInsight: row.stats.qualityOfInsight ?? undefined,
+            workLifeBalance: row.stats.workLifeBalance ?? undefined,
+          },
+          timestamp: row.capturedAt ? Date.parse(row.capturedAt) : Date.now(),
+          metadata: row.metadata ?? undefined,
+        }
+        latestScoreSnapshotRef.current = snapshot
+        return snapshot
+      } catch {
+        return null
+      } finally {
+        latestScoreFetchRef.current = null
+      }
+    })()
+
+    latestScoreFetchRef.current = request
+    return request
+  }, [state.flow?.id])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const handler = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return
+      const data = event.data
+      if (!data) return
+      if (data.type === "market-intel-scores") {
+        const payload = data.payload as MarketIntelScoreEvent
+        latestScoreSnapshotRef.current = payload
+        recordScoreUpdate(payload)
+        return
+      }
+      if (data.type === "market-intel-scores:requestLatest") {
+        const respond = (payload: MarketIntelScoreEvent | null) => {
+          if (!payload) return
+          try {
+            event.source?.postMessage({ type: "market-intel-scores:init", payload }, event.origin)
+          } catch {
+            // ignore postMessage errors
+          }
+        }
+        if (latestScoreSnapshotRef.current) {
+          respond(latestScoreSnapshotRef.current)
+        } else {
+          void fetchLatestScoreSnapshot().then(respond)
+        }
+      }
+    }
+    window.addEventListener("message", handler)
+    return () => window.removeEventListener("message", handler)
+  }, [recordScoreUpdate, fetchLatestScoreSnapshot])
+
   const useOverlayLayout = useMemo(() => {
     if (!currentNode) return false
     if (hasRenderableOverlay) return true
@@ -627,6 +763,41 @@ type FlowDefinition = {
   title: string
   start: string
   nodes: Record<string, FlowNode>
+}
+
+type MarketIntelScoreEvent = {
+  pageId?: string
+  nodeId?: string
+  flowId?: string
+  reason?: string
+  remainingSeconds?: number
+  timestamp?: number
+  metadata?: Record<string, unknown>
+  stats?: {
+    clientConfidence?: number
+    teamMorale?: number
+    qualityOfInsight?: number
+    workLifeBalance?: number
+  }
+}
+
+type StoredMarketIntelScoreRow = {
+  id: string
+  flowId: string | null
+  nodeId: string | null
+  pageId: string | null
+  reason: string | null
+  capturedAt: string | null
+  remainingSeconds: number | null
+  stats: {
+    clientConfidence: number | null
+    teamMorale: number | null
+    qualityOfInsight: number | null
+    workLifeBalance: number | null
+  }
+  metadata: Record<string, unknown> | null
+  pageSessionId: string | null
+  sessionId: string | null
 }
 
 const CONSULTING_MARKET_INTEL_URL = 'https://roeobspqokpkhwbduyid.supabase.co/storage/v1/object/public/videos/Monday%20630%20am.mp4'

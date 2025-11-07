@@ -2523,6 +2523,8 @@ font-family: 'Source Sans Pro'
         let timer;
         let timeLeft;
         const totalTime = 300;
+        let parentStatsOverride = null;
+        let parentTimeOverride = null;
 
         const timerDisplay = document.getElementById('timer-display');
         const clientConfidenceBar = document.getElementById('client-confidence-bar');
@@ -2533,6 +2535,65 @@ font-family: 'Source Sans Pro'
         const qualityOfInsightValue = document.getElementById('quality-of-insight-value');
         const workLifeBalanceBar = document.getElementById('work-life-balance-bar');
         const workLifeBalanceValue = document.getElementById('work-life-balance-value');
+
+        function dispatchScoreUpdate(reason = "stats_updated") {
+            if (!window.parent || window.parent === window) return;
+            const payload = {
+                type: "market-intel-scores",
+                payload: {
+                    pageId: "career-streams/consulting",
+                    nodeId: "O1",
+                    reason,
+                    remainingSeconds: typeof timeLeft === "number" ? timeLeft : null,
+                    stats: {
+                        clientConfidence: Math.round(stats.clientConfidence ?? 0),
+                        teamMorale: Math.round(stats.teamMorale ?? 0),
+                        qualityOfInsight: Math.round(stats.qualityOfInsight ?? 0),
+                        workLifeBalance: Math.round(stats.workLifeBalance ?? 0),
+                    },
+                    timestamp: Date.now(),
+                },
+            };
+            parentStatsOverride = {
+                clientConfidence: payload.payload.stats.clientConfidence,
+                teamMorale: payload.payload.stats.teamMorale,
+                qualityOfInsight: payload.payload.stats.qualityOfInsight,
+                workLifeBalance: payload.payload.stats.workLifeBalance,
+            };
+            parentTimeOverride = payload.payload.remainingSeconds ?? null;
+            try {
+                window.parent.postMessage(payload, window.location.origin);
+            } catch (error) {
+                console.warn("unable to notify parent window", error);
+            }
+        }
+
+        function applyParentScores(payload) {
+            if (!payload || !payload.stats) return;
+            parentStatsOverride = {
+                clientConfidence: payload.stats.clientConfidence ?? parentStatsOverride?.clientConfidence ?? null,
+                teamMorale: payload.stats.teamMorale ?? parentStatsOverride?.teamMorale ?? null,
+                qualityOfInsight: payload.stats.qualityOfInsight ?? parentStatsOverride?.qualityOfInsight ?? null,
+                workLifeBalance: payload.stats.workLifeBalance ?? parentStatsOverride?.workLifeBalance ?? null,
+            };
+            if (typeof payload.remainingSeconds === "number") {
+                parentTimeOverride = payload.remainingSeconds;
+            }
+            stats.clientConfidence = parentStatsOverride.clientConfidence ?? stats.clientConfidence ?? 50;
+            stats.teamMorale = parentStatsOverride.teamMorale ?? stats.teamMorale ?? 50;
+            stats.qualityOfInsight = parentStatsOverride.qualityOfInsight ?? stats.qualityOfInsight ?? 0;
+            stats.workLifeBalance = parentStatsOverride.workLifeBalance ?? stats.workLifeBalance ?? 75;
+            updateStatBars();
+            if (typeof parentTimeOverride === "number" && parentTimeOverride > 0) {
+                timeLeft = Math.min(totalTime, Math.max(1, parentTimeOverride));
+                updateTimerDisplay();
+            }
+        }
+
+        function requestParentScores() {
+            if (!window.parent || window.parent === window) return;
+            window.parent.postMessage({ type: "market-intel-scores:requestLatest" }, window.location.origin);
+        }
 
         function updateStatBars() {
             stats.clientConfidence = Math.max(0, Math.min(100, stats.clientConfidence));
@@ -2548,6 +2609,7 @@ font-family: 'Source Sans Pro'
             qualityOfInsightValue.textContent = `${stats.qualityOfInsight}%`;
             workLifeBalanceBar.style.width = `${stats.workLifeBalance}%`;
             workLifeBalanceValue.textContent = `${stats.workLifeBalance}%`;
+            dispatchScoreUpdate();
         }
 
         function startTimer() {
@@ -2569,7 +2631,12 @@ font-family: 'Source Sans Pro'
         }
         
         function initializeScenario() {
-            stats = { clientConfidence: 50, teamMorale: 50, workLifeBalance: 75, qualityOfInsight: 0 };
+            stats = {
+                clientConfidence: parentStatsOverride?.clientConfidence ?? 50,
+                teamMorale: parentStatsOverride?.teamMorale ?? 50,
+                workLifeBalance: parentStatsOverride?.workLifeBalance ?? 75,
+                qualityOfInsight: parentStatsOverride?.qualityOfInsight ?? 0
+            };
             score = 0;
             document.getElementById('briefing-phase').classList.remove('hidden');
             document.getElementById('analysis-phase').classList.add('hidden');
@@ -2580,7 +2647,11 @@ font-family: 'Source Sans Pro'
                 c.classList.remove('selected');
                 c.style.pointerEvents = 'auto';
             });
+            timeLeft = typeof parentTimeOverride === "number" && parentTimeOverride > 0
+                ? Math.min(totalTime, Math.max(1, parentTimeOverride))
+                : totalTime;
             updateStatBars();
+            updateTimerDisplay();
         }
 
         function startAnalysis() {
@@ -2680,6 +2751,7 @@ font-family: 'Source Sans Pro'
             }
             
             scoreSection.classList.remove('hidden');
+            dispatchScoreUpdate(timeoutFeedback ? "timeout_summary" : "analysis_completed");
         }
         
         function endQuizByTimeout() {
@@ -2692,10 +2764,20 @@ font-family: 'Source Sans Pro'
             stats.teamMorale -= 15;
             updateStatBars();
             showFinalScore("In consulting, speed is critical. Your hesitation has cost valuable time and shaken your team's confidence.");
+            dispatchScoreUpdate("timeout");
         }
+
+        window.addEventListener("message", (event) => {
+            if (event.origin !== window.location.origin) return;
+            if (event.data?.type === "market-intel-scores:init") {
+                applyParentScores(event.data.payload);
+            }
+        });
 
         // Initial load
         initializeScenario();
+        requestParentScores();
+        window.addEventListener("load", requestParentScores);
     </script>
 
     <!-- Navigation Arrow Placeholder for Tutorial -->
