@@ -489,7 +489,10 @@ function ConsultingFlowOverlay({
         const respond = (payload: MarketIntelScoreEvent | null) => {
           if (!payload) return
           try {
-            event.source?.postMessage({ type: "market-intel-scores:init", payload }, event.origin)
+            const sourceWindow = event.source as Window | null
+            if (sourceWindow && typeof sourceWindow.postMessage === "function") {
+              sourceWindow.postMessage({ type: "market-intel-scores:init", payload }, event.origin)
+            }
           } catch {
             // ignore postMessage errors
           }
